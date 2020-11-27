@@ -45,3 +45,4 @@ A tool made in Java/Python to automatically import Fortnite Skins into blender
 * Skin styles aren't supported
 * Bone parenting needs to be done manually
 * Few skins with weird materials don't texture properly
+* Some season 4 battlepass skins don't work
