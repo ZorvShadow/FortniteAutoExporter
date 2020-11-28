@@ -34,7 +34,7 @@ public class Main {
     private static Package pkg;
     private static Locres locres;
 
-    public static void main(String[] Args) throws Exception {
+    public static void main(String[] Args) {
         try {
             File configFile = new File("config.json");
 
@@ -100,12 +100,12 @@ public class Main {
 
         processSkin();
 
-        System.out.println(String.format("Please replace workingDirectory in the python script with: \n%s\n", System.getProperty("user.dir").replace("\\", "\\\\") + "\\\\"));
+        System.out.printf("Please replace workingDirectory in the python script with: \n%s\n%n", System.getProperty("user.dir").replace("\\", "\\\\") + "\\\\");
         LOGGER.info("Finished Exporting.");
 
         System.exit(0);
     }
-    public static void processSkin() throws Exception {
+    public static void processSkin() {
         try {
 
             // CID to HID
@@ -213,6 +213,9 @@ public class Main {
             writer.write(GSON.toJson(processedRoot));
             writer.close();
 
+            // UModel Process
+
+            LOGGER.info("Starting UModel Process...");
             try (PrintWriter printWriter = new PrintWriter("umodel_queue.txt")) {
                 printWriter.println("-path=\"" + config.PaksDirectory + "\"");
                 String[] SplitUEVersion = config.UEVersion.toString().split("_");
@@ -317,10 +320,5 @@ public class Main {
         private String id;
         private String path;
         private String name;
-    }
-    private static class CustomException extends Exception {
-        public CustomException(String message) {
-            super(message);
-        }
     }
 }
