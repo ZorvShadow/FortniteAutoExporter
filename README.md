@@ -7,21 +7,20 @@ A tool made in Java/Python to automatically import Fortnite Skins into blender
 * Download the [latest release](https://github.com/halfuwu/FortniteAutoExporter/releases)
 * Extract the zip file
 * Edit the [config.json](#Config) to fit your needs
-* Run the RunExporter.bat file
+* Run the RunExporter.bat file, follow instructions on screen
 
 ### Importer
 * Open Blender and import the python script **autoexporter.py** in the scripting tab
-* In the script, change the **workingDirectory** variable to the path you got from the exporter (At the top of the importer script, make sure the path ahs double slashes)
+* In the script, change the **workingDirectory** variable at the top of the script to the path you got from the exporter
 * Feel free to change the other options as well
   * **bReorientBones** toggles reoriented bones
   * **textureCharacter** toggles automatic character texturing
 
 
 ## Config
-* **PaksDirectory** : Path to Fortnite's pak folder
+* **PaksDirectory** : Path to Fortnite's pak folder **MUST BE 14.30 OR LOWER**
 * **UEVersion** : Unreal Engine Version
-* **EncryptionKey** : AES Key to load the paks with
-* **dumpAssets** : Dump each step of the parsing process as a .json file into the Dumps folder
+* **EncryptionKey** : AES Key used to load the pak files
 
 
 ## Info
@@ -43,5 +42,6 @@ A tool made in Java/Python to automatically import Fortnite Skins into blender
 ## Limitations
 * Reskins don't texture properly
 * Skin styles aren't supported
-* Bone parenting needs to be done manually
+* Most bone parenting needs to be done manually
 * Few skins with weird materials don't texture properly
+* Materials with duplicate slots can cause texturing issues
