@@ -12,7 +12,7 @@ from io_import_scene_unreal_psa_psk_280 import pskimport
 workingDirectory = "D:\\Blender Files\\Fortnite Auto Exporter\\"
 
 bReorientBones = True
-textureCharacter = True
+textureCharacter = False
 
 # Methods
 
@@ -175,12 +175,11 @@ mergeCharacter();
 
 ob = bpy.context.view_layer.objects.active
 
-i = 0
-for index, mat in enumerate(ob.data.materials):
-    for e in range(len(processedFile["Materials"])):
-        if processedFile["Materials"][e]["MaterialName"] in mat.name:
-            print(e, mat.name)
-            textureSkin(mat.name, index, e)
-    
-    i += 1
+if textureCharacter:
+    for index, mat in enumerate(ob.data.materials):
+        for e in range(len(processedFile["Materials"])):
+            if processedFile["Materials"][e]["MaterialName"] in mat.name:
+                print(e, mat.name)
+                textureSkin(mat.name, index, e)
+        
     
