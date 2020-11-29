@@ -72,7 +72,7 @@ public class Main {
             locres = fileProvider.loadLocres(FnLanguage.EN);
             pkg = fileProvider.loadGameFile(cosmeticResponse[0].path + ".uasset");
 
-            // I'm trying to save the above pkg as a uasset file but I've not no clue how to do it
+            // I'm trying to save the above pkg as a uasset file but I've got no clue how to do it
 
             if (pkg == null) {
                 LOGGER.error("Error Parsing Package.");

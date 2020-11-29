@@ -14,6 +14,7 @@ com/halfheart/fortniteautoexporter/Main.java
  com.halfheart.fortniteautoexporter.Main$HSStructure
  com.halfheart.fortniteautoexporter.Main$HSStructure$AssetPath
  com.halfheart.fortniteautoexporter.Main$HSStructure$CharacterParts
+ com.halfheart.fortniteautoexporter.Main$ManifestStructure
  com.halfheart.fortniteautoexporter.Main$MaterialStructure
  com.halfheart.fortniteautoexporter.Main$MaterialStructure$ParameterInfo
  com.halfheart.fortniteautoexporter.Main$MaterialStructure$Parameters
