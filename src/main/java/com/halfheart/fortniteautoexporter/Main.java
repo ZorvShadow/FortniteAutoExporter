@@ -5,11 +5,17 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import kotlin.ranges.IntRange;
-import me.fungames.jfortniteparse.fileprovider.DefaultFileProvider;
+import me.fabianfg.fortnitedownloader.Manifest;
+import me.fabianfg.fortnitedownloader.ManifestFileProvider;
+import me.fabianfg.fortnitedownloader.ManifestLoader;
+import me.fabianfg.fortnitedownloader.MountedBuild;
 import me.fungames.jfortniteparse.ue4.assets.Package;
+import me.fungames.jfortniteparse.ue4.assets.exports.UExport;
 import me.fungames.jfortniteparse.ue4.locres.FnLanguage;
 import me.fungames.jfortniteparse.ue4.locres.Locres;
 import me.fungames.jfortniteparse.ue4.objects.core.misc.FGuid;
+import me.fungames.jfortniteparse.ue4.objects.uobject.FObjectExport;
+import me.fungames.jfortniteparse.ue4.pak.PakFileReader;
 import me.fungames.jfortniteparse.ue4.versions.Ue4Version;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -17,10 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 
 public class Main {
 
@@ -29,10 +32,11 @@ public class Main {
 
     private static Config config;
     private static CosmeticResponse[] cosmeticResponse;
-    private static DefaultFileProvider fileProvider;
+    private static ManifestFileProvider fileProvider;
 
     private static Package pkg;
     private static Locres locres;
+    private static MountedBuild mountedBuild;
 
     public static void main(String[] Args) {
         try {
@@ -49,46 +53,26 @@ public class Main {
                 config = GSON.fromJson(reader, Config.class);
             }
 
-            LOGGER.info("Unreal Version: " + config.UEVersion);
-
-            File pakDir = new File(config.PaksDirectory);
-
-            if (!pakDir.exists()) {
-                LOGGER.error("Directory " + pakDir.getAbsolutePath() + " does not exist.");
-                return;
-            }
-
-            LOGGER.info("Pak Directory: " + pakDir.getAbsolutePath());
-
             if (config.UEVersion == null || !Arrays.toString(Ue4Version.values()).contains(config.UEVersion.toString())) {
                 LOGGER.error("Invalid Unreal Version.");
             }
 
-            while (true) {
-                System.out.println("Enter Skin Selection:");
-                String skinSelection = String.format("https://benbotfn.tk/api/v1/cosmetics/br/search/all?lang=en&searchLang=en&matchMethod=full&name=%s&backendType=AthenaCharacter",
-                        new Scanner(System.in).nextLine().replace(" ", "%20"));
-                Reader reader = new OkHttpClient().newCall(new Request.Builder().url(skinSelection).build()).execute().body().charStream();
-                cosmeticResponse = GSON.fromJson(reader, CosmeticResponse[].class);
-                reader.close();
+            LOGGER.info("Unreal Version: " + config.UEVersion);
 
-
-                if (cosmeticResponse.length == 0) {
-                    LOGGER.error("Skin Not Found.");
-                    continue;
-                }
-
-                if (cosmeticResponse[0].path == null) {
-                    LOGGER.error("Invalid Skin Selection.");
-                    continue;
-                }
-                break;
+            if (config.Manifest.isEmpty() || config.Manifest == null) {
+                LOGGER.error("Invalid Manifest.");
             }
-            fileProvider = new DefaultFileProvider(pakDir, config.UEVersion);
+
+            loadManifest(config.Manifest);
+
+            skinSelection();
+
+            fileProvider = new ManifestFileProvider(mountedBuild, Collections.singletonList(""), new File("localFiles"), Ue4Version.GAME_UE4_26, true);
             fileProvider.submitKey(FGuid.Companion.getMainGuid(), config.EncryptionKey);
             locres = fileProvider.loadLocres(FnLanguage.EN);
-
             pkg = fileProvider.loadGameFile(cosmeticResponse[0].path + ".uasset");
+
+            // I'm trying to save the above pkg as a uasset file but I've not no clue how to do it
 
             if (pkg == null) {
                 LOGGER.error("Error Parsing Package.");
@@ -217,7 +201,7 @@ public class Main {
 
             LOGGER.info("Starting UModel Process...");
             try (PrintWriter printWriter = new PrintWriter("umodel_queue.txt")) {
-                printWriter.println("-path=\"" + config.PaksDirectory + "\"");
+                printWriter.println("-path=\"" + config.Manifest + "\"");
                 String[] SplitUEVersion = config.UEVersion.toString().split("_");
                 printWriter.println("-game=ue4." + SplitUEVersion[2]);
                 printWriter.println("-aes=" + config.EncryptionKey);
@@ -238,9 +222,44 @@ public class Main {
 
 
     }
+    public static void loadManifest(String Manifest) throws Exception {
+        LOGGER.info("Loading Manifest: " + Manifest);
+        String manifestURL = String.format("http://epicgames-download1.akamaized.net/Builds/Fortnite/CloudDir/%s.manifest", Manifest);
+        Reader webReader = new OkHttpClient().newCall(new Request.Builder().url(manifestURL).build()).execute().body().charStream();
+        ManifestStructure manifestStructure = GSON.fromJson(webReader, ManifestStructure.class);
+
+        LOGGER.info("Manifest Build Version: " + manifestStructure.BuildVersionString);
+
+        Manifest manifest = ManifestLoader.downloadManifest(manifestURL);
+        File tempFolder = new File(".downloaderChunks");
+        mountedBuild = new MountedBuild(manifest, tempFolder,20,20);
+    }
+    public static void skinSelection() throws Exception {
+        System.out.println("Enter Skin Selection:");
+        String skinSelection = String.format("https://benbotfn.tk/api/v1/cosmetics/br/search/all?lang=en&searchLang=en&matchMethod=full&name=%s&backendType=AthenaCharacter",
+                new Scanner(System.in).nextLine().replace(" ", "%20"));
+        Reader reader = new OkHttpClient().newCall(new Request.Builder().url(skinSelection).build()).execute().body().charStream();
+        cosmeticResponse = GSON.fromJson(reader, CosmeticResponse[].class);
+        reader.close();
+
+
+        if (cosmeticResponse.length == 0) {
+            LOGGER.error("Skin Not Found.");
+            skinSelection();
+        }
+
+        if (cosmeticResponse[0].path == null) {
+            LOGGER.error("Invalid Skin Selection.");
+            skinSelection();
+        }
+    }
 
     public static IntRange range(int max) {
         return new IntRange(0, max-1);
+    }
+
+    public static class ManifestStructure {
+        public String BuildVersionString;
     }
 
     public static class CIDStructure {
@@ -310,10 +329,9 @@ public class Main {
     }
 
     public static class Config {
-        private String PaksDirectory;
+        private String Manifest;
         private Ue4Version UEVersion;
         private String EncryptionKey;
-        private boolean dumpAssets;
 
     }
     public static class CosmeticResponse {
