@@ -10,15 +10,13 @@ import me.fabianfg.fortnitedownloader.ManifestFileProvider;
 import me.fabianfg.fortnitedownloader.ManifestLoader;
 import me.fabianfg.fortnitedownloader.MountedBuild;
 import me.fungames.jfortniteparse.ue4.assets.Package;
-import me.fungames.jfortniteparse.ue4.assets.exports.UExport;
 import me.fungames.jfortniteparse.ue4.locres.FnLanguage;
 import me.fungames.jfortniteparse.ue4.locres.Locres;
 import me.fungames.jfortniteparse.ue4.objects.core.misc.FGuid;
-import me.fungames.jfortniteparse.ue4.objects.uobject.FObjectExport;
-import me.fungames.jfortniteparse.ue4.pak.PakFileReader;
 import me.fungames.jfortniteparse.ue4.versions.Ue4Version;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,6 +69,8 @@ public class Main {
             fileProvider.submitKey(FGuid.Companion.getMainGuid(), config.EncryptionKey);
             locres = fileProvider.loadLocres(FnLanguage.EN);
             pkg = fileProvider.loadGameFile(cosmeticResponse[0].path + ".uasset");
+            saveGamePackage(cosmeticResponse[0].path + ".uasset");
+
 
             // I'm trying to save the above pkg as a uasset file but I've got no clue how to do it
 
@@ -103,6 +103,7 @@ public class Main {
 
             // HID to HS
             pkg = fileProvider.loadGameFile(HIDPath + ".uasset");
+            saveGamePackage(HIDPath + ".uasset");
             toJson = pkg.toJson(locres);
 
             HIDStructure hidStructure = GSON.fromJson(toJson, HIDStructure.class);
@@ -114,6 +115,7 @@ public class Main {
 
             // HS to CP
             pkg = fileProvider.loadGameFile(HSPath + ".uasset");
+            saveGamePackage(HSPath + ".uasset");
             toJson = pkg.toJson(locres);
             HSStructure hsStructure = GSON.fromJson(toJson, HSStructure.class);
 
@@ -126,6 +128,7 @@ public class Main {
             List<String> MeshesList = new ArrayList<>();
             for (int i : range(hsStructure.export_properties[0].CharacterParts.length)) {
                 pkg = fileProvider.loadGameFile(CharacterParts.toArray()[i] + ".uasset");
+                saveGamePackage(CharacterParts.toArray()[i] + ".uasset");
                 toJson = pkg.toJson(locres);
                 CPStructure cpStructure = GSON.fromJson(toJson, CPStructure.class);
                 MeshesList.add(cpStructure.export_properties[1].SkeletalMesh.assetPath.split("\\.")[0]);
@@ -135,6 +138,15 @@ public class Main {
             List<String> MaterialsList = new ArrayList<>();
             for (int i : range(hsStructure.export_properties[0].CharacterParts.length))  {
                 pkg = fileProvider.loadGameFile(MeshesList.toArray()[i] + ".uasset");
+                saveGamePackage(MeshesList.toArray()[i] + ".uasset");
+
+                byte[] saveGameFile = fileProvider.saveGameFile(MeshesList.toArray()[i] + ".uexp");
+
+                if (saveGameFile == null) {
+                    System.out.println("null lol");
+                }
+                FileUtils.writeByteArrayToFile(new File(MeshesList.toArray()[i] + ".uexp"), saveGameFile);
+
                 toJson = pkg.toJson(locres);
 
                 MeshStructure meshStructure = GSON.fromJson(toJson, MeshStructure.class);
@@ -165,6 +177,7 @@ public class Main {
             for (int i : range(MaterialsList.toArray().length)) {
 
                 pkg = fileProvider.loadGameFile(MaterialsList.toArray()[i].toString());
+                saveGamePackage(MaterialsList.toArray()[i].toString() + ".uasset");
                 toJson = pkg.toJson(locres);
                 MaterialStructure materialStructure = GSON.fromJson(toJson, MaterialStructure.class);
 
@@ -184,6 +197,8 @@ public class Main {
                                     && Arrays.asList(validTextures).contains(textureType)) {
                                 MaterialName.addProperty(textureType, System.getProperty("user.dir") + "\\UmodelExport"
                                         + materialStructure.import_map[j].object_name.replace("/", "\\") + ".tga");
+                                saveGamePackage(materialStructure.import_map[j].object_name + ".uasset");
+                                saveGamePackage(materialStructure.import_map[j].object_name + ".uexp");
                             }
                         }
                     }
@@ -201,7 +216,7 @@ public class Main {
 
             LOGGER.info("Starting UModel Process...");
             try (PrintWriter printWriter = new PrintWriter("umodel_queue.txt")) {
-                printWriter.println("-path=\"" + config.Manifest + "\"");
+                printWriter.println("-path=\"" + System.getProperty("user.dir") + "\\.manifestAssets\\" + "\"");
                 String[] SplitUEVersion = config.UEVersion.toString().split("_");
                 printWriter.println("-game=ue4." + SplitUEVersion[2]);
                 printWriter.println("-aes=" + config.EncryptionKey);
@@ -217,6 +232,7 @@ public class Main {
             pb.start().waitFor();
         } catch (Exception exception) {
             exception.printStackTrace();
+            System.exit(1);
         }
 
 
@@ -252,6 +268,11 @@ public class Main {
             LOGGER.error("Invalid Skin Selection.");
             skinSelection();
         }
+    }
+    public static void saveGamePackage(String gamePackage) throws Exception {
+        byte[] saveGameFile = fileProvider.saveGameFile(gamePackage);
+        FileUtils.writeByteArrayToFile(new File(System.getProperty("user.dir") +
+                "\\.manifestAssets" + gamePackage.replace("/", "\\")), saveGameFile);
     }
 
     public static IntRange range(int max) {
