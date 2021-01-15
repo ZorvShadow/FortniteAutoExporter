@@ -1,26 +1,26 @@
 package com.halfheart.fortniteautoexporter;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
+import com.google.gson.*;
+import kotlin.io.FilesKt;
 import kotlin.ranges.IntRange;
 import me.fungames.jfortniteparse.fileprovider.DefaultFileProvider;
-import me.fungames.jfortniteparse.ue4.assets.Package;
-import me.fungames.jfortniteparse.ue4.locres.FnLanguage;
-import me.fungames.jfortniteparse.ue4.locres.Locres;
+import me.fungames.jfortniteparse.tb24.JWPSerializer;
+import me.fungames.jfortniteparse.ue4.assets.IoPackage;
+import me.fungames.jfortniteparse.ue4.assets.mappings.UsmapTypeMappingsProvider;
+import me.fungames.jfortniteparse.ue4.asyncloading2.FPackageObjectIndex;
 import me.fungames.jfortniteparse.ue4.objects.core.misc.FGuid;
+import me.fungames.jfortniteparse.ue4.pak.PakFileReader;
 import me.fungames.jfortniteparse.ue4.versions.Ue4Version;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.*;
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
-import java.util.Scanner;
 
 public class Main {
 
@@ -31,177 +31,186 @@ public class Main {
     private static CosmeticResponse[] cosmeticResponse;
     private static DefaultFileProvider fileProvider;
 
-    private static Package pkg;
-    private static Locres locres;
+    private static IoPackage pkg;
+    private static File pakDir;
 
-    public static void main(String[] Args) {
-        try {
-            File configFile = new File("config.json");
+    private static long start;
 
-            if (!configFile.exists()) {
-                LOGGER.error("Config file does not exist.");
-                return;
-            }
+    public static void main(String[] Args) throws Exception {
+        updateMappings();
 
-            LOGGER.info("Reading config file at " + configFile.getAbsolutePath());
+        File configFile = new File("config.json");
 
-            try (FileReader reader = new FileReader(configFile)){
-                config = GSON.fromJson(reader, Config.class);
-            }
+        if (!configFile.exists()) {
+            LOGGER.error("Config file does not exist.");
+            return;
+        }
 
-            LOGGER.info("Unreal Version: " + config.UEVersion);
+        LOGGER.info("Reading config file at " + configFile.getAbsolutePath());
 
-            File pakDir = new File(config.PaksDirectory);
+        try (FileReader reader = new FileReader(configFile)){
+            config = GSON.fromJson(reader, Config.class);
+        }
 
-            if (!pakDir.exists()) {
-                LOGGER.error("Directory " + pakDir.getAbsolutePath() + " does not exist.");
-                return;
-            }
+        LOGGER.info("Unreal Version: " + config.UEVersion);
 
-            LOGGER.info("Pak Directory: " + pakDir.getAbsolutePath());
+        pakDir = new File(config.PaksDirectory);
 
-            if (config.UEVersion == null || !Arrays.toString(Ue4Version.values()).contains(config.UEVersion.toString())) {
-                LOGGER.error("Invalid Unreal Version.");
-            }
+        if (!pakDir.exists()) {
+            LOGGER.error("Directory " + pakDir.getAbsolutePath() + " does not exist.");
+            return;
+        }
 
-            while (true) {
-                System.out.println("Enter Skin Selection:");
-                String skinSelection = String.format("https://benbotfn.tk/api/v1/cosmetics/br/search/all?lang=en&searchLang=en&matchMethod=full&name=%s&backendType=AthenaCharacter",
-                        new Scanner(System.in).nextLine().replace(" ", "%20"));
-                Reader reader = new OkHttpClient().newCall(new Request.Builder().url(skinSelection).build()).execute().body().charStream();
-                cosmeticResponse = GSON.fromJson(reader, CosmeticResponse[].class);
-                reader.close();
+        LOGGER.info("Pak Directory: " + pakDir.getAbsolutePath());
 
+        if (config.UEVersion == null || !Arrays.toString(Ue4Version.values()).contains(config.UEVersion.toString())) {
+            LOGGER.error("Invalid Unreal Version.");
+        }
 
-                if (cosmeticResponse.length == 0) {
-                    LOGGER.error("Skin Not Found.");
-                    continue;
-                }
+        while (true) promptSkin();
+    }
+    public static void promptSkin() throws Exception {
+        System.out.println("Enter Skin Selection:");
+        String skinSelection = new Scanner(System.in).nextLine().replace(" ", "%20");
+        start = System.currentTimeMillis();
+        String skinSelectionFormat = String.format("https://benbotfn.tk/api/v1/cosmetics/br/search/all?lang=en&searchLang=en&matchMethod=full&name=%s&backendType=AthenaCharacter", skinSelection);
+        Reader reader = new OkHttpClient().newCall(new Request.Builder().url(skinSelectionFormat).build()).execute().body().charStream();
+        cosmeticResponse = GSON.fromJson(reader, CosmeticResponse[].class);
+        reader.close();
 
-                if (cosmeticResponse[0].path == null) {
-                    LOGGER.error("Invalid Skin Selection.");
-                    continue;
-                }
-                break;
-            }
-            fileProvider = new DefaultFileProvider(pakDir, config.UEVersion);
-            fileProvider.submitKey(FGuid.Companion.getMainGuid(), config.EncryptionKey);
-            locres = fileProvider.loadLocres(FnLanguage.EN);
+        if (cosmeticResponse.length == 0) {
+            LOGGER.error("Skin Not Found.");
+            promptSkin();
+        }
 
-            pkg = fileProvider.loadGameFile(cosmeticResponse[0].path + ".uasset");
+        if (cosmeticResponse[0].path == null) {
+            LOGGER.error("Invalid Skin Selection.");
+            promptSkin();
+        }
+        fileProvider = new DefaultFileProvider(pakDir, config.UEVersion);
+        fileProvider.submitKey(FGuid.Companion.getMainGuid(), config.EncryptionKey);
 
-            if (pkg == null) {
-                LOGGER.error("Error Parsing Package.");
-            }
+        reader = new OkHttpClient().newCall(new Request.Builder().url("https://benbotfn.tk/api/v1/mappings").build()).execute().body().charStream();
+        mappingsResponse[] mappingsResponse = GSON.fromJson(reader, mappingsResponse[].class);
+        UsmapTypeMappingsProvider mappingsProvider = new UsmapTypeMappingsProvider(new File(System.getProperty("user.dir") + "/Mappings/" + mappingsResponse[0].fileName));
+        mappingsProvider.reload();
+        fileProvider.setMappingsProvider(mappingsProvider);
 
-        } catch (Exception exception) {
-            exception.printStackTrace();
+        pkg = (IoPackage) fileProvider.loadGameFile(cosmeticResponse[0].path + ".uasset");
+
+        if (pkg == null) {
+            LOGGER.error("Error Parsing Package.");
         }
 
         processSkin();
-
-        System.out.printf("Please replace workingDirectory in the python script with: \n%s\n%n", System.getProperty("user.dir").replace("\\", "\\\\") + "\\\\");
-        LOGGER.info("Finished Exporting.");
-
-        System.exit(0);
     }
     public static void processSkin() {
         try {
 
             // CID to HID
-            String toJson = pkg.toJson(locres);
-            CIDStructure cidStructure = GSON.fromJson(toJson, CIDStructure.class);
-            String HIDPath = "";
-            for (int i : range(cidStructure.import_map.length)) {
-                if (cidStructure.import_map[i].class_name.contains("Package") &&
-                        cidStructure.import_map[i].object_name.contains("HID")) HIDPath = cidStructure.import_map[i].object_name;
-            }
+            String toJson = JWPSerializer.GSON.toJson(pkg.getExports());
+            CIDStructure[] cidStructure = GSON.fromJson(toJson, CIDStructure[].class);
+            String HIDPath = "/Game/Athena/Heroes/" + cidStructure[0].HeroDefinition[0];
 
             // HID to HS
-            pkg = fileProvider.loadGameFile(HIDPath + ".uasset");
-            toJson = pkg.toJson(locres);
+            pkg = (IoPackage) fileProvider.loadGameFile(HIDPath + ".uasset");
+            toJson = JWPSerializer.GSON.toJson(pkg.getExports());
 
-            HIDStructure hidStructure = GSON.fromJson(toJson, HIDStructure.class);
-            String HSPath = "";
-            for (int i : range(hidStructure.export_properties.length)) {
-                String[] HSSplit = hidStructure.export_properties[i].Specializations[0].assetPath.split("\\.");
-                HSPath = HSSplit[0];
-            }
+            HIDStructure[] hidStructure = GSON.fromJson(toJson, HIDStructure[].class);
+            String HSPath = hidStructure[0].Specializations[0].asset_path_name.split("\\.")[0];
+
 
             // HS to CP
-            pkg = fileProvider.loadGameFile(HSPath + ".uasset");
-            toJson = pkg.toJson(locres);
-            HSStructure hsStructure = GSON.fromJson(toJson, HSStructure.class);
+            pkg = (IoPackage) fileProvider.loadGameFile(HSPath + ".uasset");
+            toJson = JWPSerializer.GSON.toJson(pkg.getExports());
+            HSStructure[] hsStructure = GSON.fromJson(toJson, HSStructure[].class);
 
             List<String> CharacterParts = new ArrayList<>();
-            for (int i : range(hsStructure.export_properties[0].CharacterParts.length)) {
-                CharacterParts.add(hsStructure.export_properties[0].CharacterParts[i].assetPath.split("\\.")[0]);
+            for (int i : range(hsStructure[0].CharacterParts.length)) {
+                CharacterParts.add(hsStructure[0].CharacterParts[i].asset_path_name.split("\\.")[0]);
             }
 
-            // CP to Mesh
+            // CP to Mesh to Material
             List<String> MeshesList = new ArrayList<>();
-            for (int i : range(hsStructure.export_properties[0].CharacterParts.length)) {
-                pkg = fileProvider.loadGameFile(CharacterParts.toArray()[i] + ".uasset");
-                toJson = pkg.toJson(locres);
-                CPStructure cpStructure = GSON.fromJson(toJson, CPStructure.class);
-                MeshesList.add(cpStructure.export_properties[1].SkeletalMesh.assetPath.split("\\.")[0]);
-            }
-
-            // Mesh to Material
             List<String> MaterialsList = new ArrayList<>();
-            for (int i : range(hsStructure.export_properties[0].CharacterParts.length))  {
-                pkg = fileProvider.loadGameFile(MeshesList.toArray()[i] + ".uasset");
-                toJson = pkg.toJson(locres);
+            for (int i : range(hsStructure[0].CharacterParts.length))  {
+                pkg = (IoPackage) fileProvider.loadGameFile(CharacterParts.toArray()[i] + ".uasset");
+                String toJsonCP =  JWPSerializer.GSON.toJson(pkg.getExports());
+                CPStructure[] cpStructure = GSON.fromJson(toJsonCP, CPStructure[].class);
+                MeshesList.add(cpStructure[1].SkeletalMesh.asset_path_name.split("\\.")[0]);
 
-                MeshStructure meshStructure = GSON.fromJson(toJson, MeshStructure.class);
-                for (int e : range(meshStructure.import_map.length)) {
-                    if (meshStructure.import_map[e].class_name.contains("Package") && meshStructure.import_map[e].object_name.contains("Material")) {
-                        MaterialsList.add(meshStructure.import_map[e].object_name);
+                pkg = (IoPackage) fileProvider.loadGameFile(cpStructure[1].SkeletalMesh.asset_path_name.split("\\.")[0] + ".uasset");
+                int j = 0;
+                for (FPackageObjectIndex e : pkg.getImportMap()) {
+                    if (e.isNull()) {
+                        break;
+                    } else {
+                        if (pkg.resolveObjectIndex(e, true).getPkg().toString().contains("Material")) {
+                            MaterialsList.add(pkg.resolveObjectIndex(e, true).getPkg().toString());
+                        }
                     }
                 }
             }
 
             // Create processed.json
             JsonObject processedRoot = new JsonObject();
-            processedRoot.addProperty("characterName", cosmeticResponse[0].name);
+            processedRoot.addProperty("objectName", cosmeticResponse[0].name);
 
             JsonArray meshArray = new JsonArray();
             processedRoot.add("Meshes", meshArray);
             for (String i : MeshesList) {
-                meshArray.add(System.getProperty("user.dir") + "\\UmodelExport" + i.replace("/", "\\") + ".psk");
+                meshArray.add(i);
             }
 
             JsonArray materialArray = new JsonArray();
             processedRoot.add("Materials", materialArray);
 
             // Material to Texture Parameters
-
-            String[] validTextures = {"Diffuse", "Emissive", "M", "Normals", "SpecularMasks", "SkinFX_Mask"};
-
             for (int i : range(MaterialsList.toArray().length)) {
 
-                pkg = fileProvider.loadGameFile(MaterialsList.toArray()[i].toString());
-                toJson = pkg.toJson(locres);
-                MaterialStructure materialStructure = GSON.fromJson(toJson, MaterialStructure.class);
+                pkg = (IoPackage) fileProvider.loadGameFile(MaterialsList.toArray()[i].toString());
+                toJson = JWPSerializer.GSON.toJson(pkg.getExports());
+                textureParameterMaterialStructure[] materialStructure = GSON.fromJson(toJson, textureParameterMaterialStructure[].class);
+
+                if (config.dumpMaterials) {
+                    File materialDumpFolder = new File("MaterialDumps");
+                    if (!materialDumpFolder.exists()) {
+                        materialDumpFolder.mkdir();
+                    }
+                    File materialFile = new File(materialDumpFolder, MaterialsList.toArray()[i].toString() + ".json");
+                    FileUtils.touch(materialFile);
+                    FilesKt.writeBytes(materialFile, toJson.getBytes());
+                }
 
                 JsonObject MaterialName = new JsonObject();
                 materialArray.add(MaterialName);
-                String[] splitMaterialsList = MaterialsList.toArray()[i].toString().split("/");
-                MaterialName.addProperty("MaterialName", splitMaterialsList[splitMaterialsList.length-1]);
+                String[] splitMaterialsList = MaterialsList.get(i).split("/");
+                MaterialName.addProperty("MaterialName", splitMaterialsList[splitMaterialsList.length - 1]);
+                MaterialName.addProperty("MaterialPath", MaterialsList.toArray()[i].toString());
 
+                String textureType;
+                String textureValue;
                 if (toJson.contains("TextureParameterValues")) {
-                    for (int e : range(materialStructure.export_properties[0].TextureParameterValues.length)) {
-                        String textureType = materialStructure.export_properties[0].TextureParameterValues[e].ParameterInfo.Name;
-                        String textureValue = materialStructure.export_properties[0].TextureParameterValues[e].ParameterValue;
+                    for (int e : range(materialStructure[0].TextureParameterValues.length)) {
+                        textureType = materialStructure[0].TextureParameterValues[e].ParameterInfo.Name;
+                        textureValue = materialStructure[0].TextureParameterValues[e].ParameterValue[1];
 
-                        for (int j : range(materialStructure.import_map.length)) {
-                            if (materialStructure.import_map[j].class_name.contains("Package")
-                                    && materialStructure.import_map[j].object_name.contains(textureValue)
-                                    && Arrays.asList(validTextures).contains(textureType)) {
-                                MaterialName.addProperty(textureType, System.getProperty("user.dir") + "\\UmodelExport"
-                                        + materialStructure.import_map[j].object_name.replace("/", "\\") + ".tga");
+                        for (FPackageObjectIndex j : pkg.getImportMap()) {
+                            if (j.isNull()) {
+                                break;
+                            } else {
+                                MaterialName.addProperty(textureType, textureValue);
                             }
                         }
+                    }
+                }
+                scalarParameterMaterialStructure[] scalarParameterMaterialStructure = GSON.fromJson(toJson, Main.scalarParameterMaterialStructure[].class);
+                if (toJson.contains("ScalarParameterValues")) {
+                    for (int e : range(scalarParameterMaterialStructure[0].ScalarParameterValues.length)) {
+                        String scalarType = scalarParameterMaterialStructure[0].ScalarParameterValues[e].ParameterInfo.Name;
+                        double scalarValue = scalarParameterMaterialStructure[0].ScalarParameterValues[e].ParameterValue;
+
+                        MaterialName.addProperty(scalarType, scalarValue);
                     }
                 }
             }
@@ -213,24 +222,27 @@ public class Main {
             writer.write(GSON.toJson(processedRoot));
             writer.close();
 
-            // UModel Process
-
-            LOGGER.info("Starting UModel Process...");
-            try (PrintWriter printWriter = new PrintWriter("umodel_queue.txt")) {
-                printWriter.println("-path=\"" + config.PaksDirectory + "\"");
-                String[] SplitUEVersion = config.UEVersion.toString().split("_");
-                printWriter.println("-game=ue4." + SplitUEVersion[2]);
-                printWriter.println("-aes=" + config.EncryptionKey);
-                printWriter.println("-export ");
-                for (String meshes : MeshesList) {
-                    printWriter.println("-pkg=" + meshes);
+            if (config.exportAssets) {
+                try (PrintWriter printWriter = new PrintWriter("umodel_queue.txt")) {
+                    printWriter.println("-path=\"" + config.PaksDirectory + "\"");
+                    printWriter.println("-game=ue4." + "27");
+                    printWriter.println("-aes=" + config.EncryptionKey);
+                    printWriter.println("-export ");
+                    for (String meshes : MeshesList) {
+                        printWriter.println("-pkg=" + meshes);
+                    }
+                    for (String mats : MaterialsList) {
+                        printWriter.println("-pkg=" + mats);
+                    }
                 }
+                Thread.sleep(5000);
+                ProcessBuilder pb = new ProcessBuilder(Arrays.asList("umodel", "@umodel_queue.txt"));
+                pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+                pb.start().waitFor();
             }
-            Thread.sleep(5000);
-            ProcessBuilder pb = new ProcessBuilder(Arrays.asList("umodel", "@umodel_queue.txt"));
-            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
-            pb.start().waitFor();
+
+            LOGGER.info(String.format("Finished Exporting in %.1f sec. Replace the line with workingDirectory in the python script with this line:\n\nworkingDirectory = \"%s\\\\\"\n\n",  (System.currentTimeMillis() - start) / 1000.0F, new File("").getAbsolutePath().replace("\\", "\\\\"))); ;
         } catch (Exception exception) {
             exception.printStackTrace();
         }
@@ -243,66 +255,69 @@ public class Main {
         return new IntRange(0, max-1);
     }
 
-    public static class CIDStructure {
-        private importMapSelection[] import_map;
-        public class importMapSelection {
-            public String class_name;
-            public String object_name;
+    public static void updateMappings() throws Exception {
+        Reader reader = new OkHttpClient().newCall(new Request.Builder().url("https://benbotfn.tk/api/v1/mappings").build()).execute().body().charStream();
+        mappingsResponse[] mappingsResponse = GSON.fromJson(reader, mappingsResponse[].class);
+
+        File mappingsFolder = new File("Mappings");
+        File mappingsFile = new File(mappingsFolder, mappingsResponse[0].fileName);
+
+        byte[] usmap = new OkHttpClient().newCall(new Request.Builder().url(mappingsResponse[0].url).build()).execute().body().bytes();
+
+        if (!mappingsFolder.exists()) {
+            mappingsFolder.mkdir();
         }
+        FilesKt.writeBytes(mappingsFile, usmap);
+
+        LOGGER.info("Mappings File: " + mappingsFile.getName());
+    }
+
+    public static class CIDStructure {
+        private String[] HeroDefinition;
     }
     public static class HIDStructure {
-        private Specializations[] export_properties;
+        private Specializations[] Specializations;
         public class Specializations {
-            public AssetPath[] Specializations;
-        }
-        public class AssetPath {
-            public String assetPath;
+            public String asset_path_name;
         }
     }
     public static class HSStructure {
-        private CharacterParts[] export_properties;
-        public class CharacterParts {
-            public AssetPath[] CharacterParts;
-        }
-        public class AssetPath {
-            public String assetPath;
+        private PathName[] CharacterParts;
+        public class PathName {
+            public String asset_path_name;
         }
     }
     public static class CPStructure {
-        private SkeletalMesh[] export_properties;
+        private SkeletalMesh SkeletalMesh;
+        private materialOverride[] MaterialOverrides;
+        private assetPath SkinColorSwatch;
         public class SkeletalMesh {
-            public AssetPath SkeletalMesh;
-            public OverrideMaterial[] MaterialOverrides;
+            public String asset_path_name;
         }
-        public class OverrideMaterial {
-            public AssetPath OverrideMaterial;
+        public class materialOverride {
+            public assetPath OverrideMaterial;
+            public int MaterialOverrideIndex;
         }
-        public class AssetPath {
-            public String assetPath;
-        }
-    }
-    public static class MeshStructure {
-        private importMapSelection[] import_map;
-        public class importMapSelection {
-            public String class_name;
-            public String object_name;
+        public class assetPath {
+            public String asset_path_name;
         }
     }
-    public static class MaterialStructure {
-        private importedmapstuff[] import_map;
-        public class importedmapstuff {
-            public String class_name;
-            public String object_name;
-        }
 
-        private TextureParameterValues[] export_properties;
-        public class TextureParameterValues {
-
-            public Parameters[] TextureParameterValues;
-        }
+    public static class textureParameterMaterialStructure {
+        public Parameters[] TextureParameterValues;
         public class Parameters {
             public ParameterInfo ParameterInfo;
-            public String ParameterValue;
+            public String[] ParameterValue;
+        }
+        public class ParameterInfo {
+            public String Name;
+        }
+    }
+    public static class scalarParameterMaterialStructure {
+        public Parameters[] ScalarParameterValues;
+        public class Parameters {
+            public ParameterInfo ParameterInfo;
+            public double ParameterValue;
         }
         public class ParameterInfo {
             public String Name;
@@ -313,12 +328,17 @@ public class Main {
         private String PaksDirectory;
         private Ue4Version UEVersion;
         private String EncryptionKey;
-        private boolean dumpAssets;
+        private boolean exportAssets;
+        private boolean dumpMaterials;
 
     }
     public static class CosmeticResponse {
         private String id;
         private String path;
         private String name;
+    }
+    public static class mappingsResponse {
+        private String url;
+        private String fileName;
     }
 }

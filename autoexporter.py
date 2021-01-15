@@ -5,63 +5,29 @@ Fortnite Auto Exporter by Half
 import bpy
 import json
 import os
-from io_import_scene_unreal_psa_psk_280 import pskimport
+from io_import_scene_unreal_psa_psk_280 import pskimport, psaimport
 
 # SETTINGS
 
 workingDirectory = "D:\\Blender Files\\Fortnite Auto Exporter\\"
 
 bReorientBones = True
-textureCharacter = False
+textureCharacter = True
 
-# Methods
+# CODE
 
-class Logger():
-    def INFO(content):
-        print("[{Program}] {Type}: {Content}".format(Program = "FortniteAutoExporter", Type = "INFO", Content = content))
-    def ERROR(content):
-        print("[{Program}] {Type}: {Content}".format(Program = "FortniteAutoExporter", Type = "ERROR", Content = content))
-    def WARN(content):
-        print("[{Program}] {Type}: {Content}".format(Program = "FortniteAutoExporter", Type = "WARN", Content = content))
-        
-def mergeCharacter():
-    objects = bpy.context.scene.objects
+def objectCollection():
+    if not objectName in bpy.data.collections:
+        new_collection = bpy.ops.collection.create(name  = objectName)
+        bpy.context.scene.collection.children.link(bpy.data.collections[objectName])
+    for collection in bpy.context.view_layer.layer_collection.children:
+        if collection.name == objectName:
+            bpy.context.view_layer.active_layer_collection = collection 
+            
+def formatImagePath(indexPassthrough, textureType):
+    return workingDirectory + "UmodelExport" + str(processed["Materials"][indexPassthrough][textureType]).replace("/", "\\") + ".tga"
     
-    for obj in bpy.data.collections[characterName].all_objects:
-        obj.select_set(obj.type == "ARMATURE")
-        
-    processedsplitao = processedFile["Meshes"][1].split("\\")
-    meshnameao = processedsplitao[len(processedsplitao) -1].replace(".psk", ".ao")
-
-    bpy.context.view_layer.objects.active = bpy.data.objects[meshnameao]
-    bpy.ops.object.join()
-
-    bpy.ops.object.editmode_toggle()
-
-    bpy.ops.armature.select_all(action='DESELECT')
-    bpy.ops.object.select_pattern(pattern="*.001")
-    bpy.ops.object.select_pattern(pattern="*.002")
-    bpy.ops.object.select_pattern(pattern="*.003")
-    bpy.ops.object.select_pattern(pattern="*.004")
-    bpy.ops.object.select_pattern(pattern="*.005")
-    bpy.ops.armature.delete()
-    bpy.ops.object.editmode_toggle()
-
-    for obj in bpy.data.collections[characterName].all_objects:
-        obj.select_set(obj.type == "MESH")
-        
-    processedsplit = processedFile["Meshes"][1].split("\\")
-    meshname = processedsplit[len(processedsplit) -1].replace(".psk", ".mo")
-
-    bpy.context.view_layer.objects.active = bpy.data.objects[meshname]
-    bpy.ops.object.editmode_toggle()
-    bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.mesh.tris_convert_to_quads(uvs=True)
-    bpy.ops.object.editmode_toggle()
-    bpy.ops.object.shade_smooth()
-    bpy.ops.object.join()
-
-def textureSkin(MaterialName, Index, MatIndex):
+def textureSkin(MaterialName, Index):
     mat = bpy.data.materials[MaterialName]
     mat.use_nodes = True
 
@@ -79,107 +45,107 @@ def textureSkin(MaterialName, Index, MatIndex):
 
     group = nodes.new('ShaderNodeGroup')
     group.node_tree = bpy.data.node_groups[shaderobject]
-    group.inputs[3].default_value = 5
+    group.inputs[3].default_value = 1
 
     node_output = nodes.new(type="ShaderNodeOutputMaterial")
     node_output.location = 200, 0
-
-    if "Diffuse" in processedFile["Materials"][MatIndex]:
-        node_diffuse = nodes.new(type="ShaderNodeTexImage")
-        node_diffuse.image = bpy.data.images.load(processedFile["Materials"][MatIndex]["Diffuse"])
-        node_diffuse.image.alpha_mode = 'CHANNEL_PACKED'
-        node_diffuse.location = -400,-75
-        node_diffuse.hide = True
-        link = links.new(node_diffuse.outputs[0], group.inputs[0])
-
-    if "SpecularMasks" in processedFile["Materials"][MatIndex]:
-         node_specular = nodes.new(type="ShaderNodeTexImage")
-         node_specular.image = bpy.data.images.load(processedFile["Materials"][MatIndex]["SpecularMasks"])
-         node_specular.image.alpha_mode = 'CHANNEL_PACKED'
-         node_specular.image.colorspace_settings.name = 'Linear'
-         node_specular.location = -400,-200
-         node_specular.hide = True
-         link = links.new(node_specular.outputs[0], group.inputs[6])
-    if "Normals" in processedFile["Materials"][MatIndex]:
-        node_normal = nodes.new(type="ShaderNodeTexImage")
-        node_normal.image = bpy.data.images.load(processedFile["Materials"][MatIndex]["Normals"])
-        node_normal.image.alpha_mode = 'CHANNEL_PACKED'
-        node_normal.image.colorspace_settings.name = 'Linear'
-        node_normal.location = -400,-150
-        node_normal.hide = True
-        link = links.new(node_normal.outputs[0], group.inputs[4])
-
-    if "M" in processedFile["Materials"][MatIndex]:
-        node_M = nodes.new(type="ShaderNodeTexImage")
-        node_M.image = bpy.data.images.load(processedFile["Materials"][MatIndex]["M"])
-        node_M.image.alpha_mode = 'CHANNEL_PACKED'
-        node_M.location = -400,-110
-        node_M.hide = True
-        link = links.new(node_M.outputs[0], group.inputs[1])
-
-    if "Emissive" in processedFile["Materials"][MatIndex]:
-        node_emissive = nodes.new(type="ShaderNodeTexImage")
-        node_emissive.image = bpy.data.images.load(processedFile["Materials"][MatIndex]["Emissive"])
-        node_emissive.image.alpha_mode = 'CHANNEL_PACKED'
-        node_emissive.location = -400,-300
-        node_emissive.hide = True
-        link = links.new(node_emissive.outputs[0], group.inputs[2])
+    
+    # TEXTURE CHECKING
+    
+    if "Diffuse" in processed["Materials"][Index]:
+        node = nodes.new(type="ShaderNodeTexImage")
+        node.image = bpy.data.images.load(formatImagePath(Index, "Diffuse"))
+        node.location = -400,-75
+        node.hide = True
+        link = links.new(node.outputs[0], group.inputs[0])
+        node.select = True
         
-    if "SkinFX_Mask" in processedFile["Materials"][MatIndex]:
-        node_skinfx = nodes.new(type="ShaderNodeTexImage")
-        node_skinfx.image = bpy.data.images.load(processedFile["Materials"][MatIndex]["SkinFX_Mask"])
-        node_skinfx.image.alpha_mode = 'CHANNEL_PACKED'
-        node_skinfx.location = -400,-400
+    if "M" in processed["Materials"][Index]:
+        node = nodes.new(type="ShaderNodeTexImage")
+        node.image = bpy.data.images.load(formatImagePath(Index, "M"))
+        node.location = -400,-100
+        node.hide = True
+        link = links.new(node.outputs[0], group.inputs[1])
 
+    if "Normals" in processed["Materials"][Index]:
+        node = nodes.new(type="ShaderNodeTexImage")
+        node.image = bpy.data.images.load(formatImagePath(Index, "Normals"))
+        node.image.colorspace_settings.name = 'Linear'
+        node.location = -400,-125
+        node.hide = True
+        link = links.new(node.outputs[0], group.inputs[2])
+        
+    if "SpecularMasks" in processed["Materials"][Index]:
+        node = nodes.new(type="ShaderNodeTexImage")
+        node.image = bpy.data.images.load(formatImagePath(Index, "SpecularMasks"))
+        node.image.colorspace_settings.name = 'Linear'
+        node.location = -400,-175
+        node.hide = True
+        link = links.new(node.outputs[0], group.inputs[4])
+        
+    if "Emissive" in processed["Materials"][Index]:
+        node = nodes.new(type="ShaderNodeTexImage")
+        node.image = bpy.data.images.load(formatImagePath(Index, "Emissive"))
+        node.location = -400,-325
+        node.hide = True
+        link = links.new(node.outputs[0], group.inputs[11])
 
-
+        
+    if "SkinFX_Mask" in processed["Materials"][Index]:
+        node = nodes.new(type="ShaderNodeTexImage")
+        node.image = bpy.data.images.load(formatImagePath(Index, "SkinFX_Mask"))
+        node.location = -800,-100
+        node.hide = True
+        frame = nodes.new(type="NodeFrame")
+        frame.location = -800,-100
+        node.parent = frame
+        frame.label = "SkinFX_Mask"
+        
+    # PARAMETER CHECKING
+    
+    if "emissive mult" in processed["Materials"][Index]:
+        bpy.data.node_groups["Fortnite Auto Exporter Shader"].inputs[12].default_value = processed["Materials"][Index]["emissive mult"]
+        
+        
     link = links.new(group.outputs[0], node_output.inputs[0])
 
     ob = bpy.context.view_layer.objects.active
     ob.select_set(True)
 
-    if ob.data.materials:
-        ob.data.materials[Index] = mat
-    else:
-        ob.data.materials.append(mat)
 
     bpy.ops.object.select_all(action='DESELECT')
     
-# Main Code
-        
+    
 os.chdir(workingDirectory)
+processed = json.loads(open("processed.json", "r").read())
 
-f = open("processed.json", "r")
-processedJson = f.read()
-processedFile = json.loads(processedJson)
-Logger.INFO("Reading processed.json")
-
-characterName = processedFile["characterName"]
-Logger.INFO(f"Importing Character: {characterName}")
-
-new_collection = ""
-
-new_collection = bpy.data.collections.new(characterName)
-bpy.context.scene.collection.children.link(new_collection)
-
-# Create Collection & Import Mesh
-    
-for collection in bpy.context.view_layer.layer_collection.children:
-    if collection.name == characterName:
-        bpy.context.view_layer.active_layer_collection = collection
-
-for i in processedFile["Meshes"]:
-    pskimport(i, bpy.context, bReorientBones = bReorientBones)
-    
-mergeCharacter();
-
-ob = bpy.context.view_layer.objects.active
-
-if textureCharacter:
-    for index, mat in enumerate(ob.data.materials):
-        for e in range(len(processedFile["Materials"])):
-            if processedFile["Materials"][e]["MaterialName"] in mat.name:
-                print(e, mat.name)
-                textureSkin(mat.name, index, e)
+objectName = processed.get("objectName")   
+objectCollection()   
         
+for i in range(len(processed["Meshes"])):
+    formatFilePath = workingDirectory.replace("\\","/") + "/UmodelExport" + processed["Meshes"][i] + ".psk"
+    pskimport(formatFilePath, bpy.context, bReorientBones = bReorientBones)
     
+    if not os.path.exists(formatFilePath):
+        splitPath = processed["Meshes"][i].split("\\")
+        print(f"WARNING: {splitPath[len(splitPath)-1]} not found.")
+    
+for obj in bpy.context.scene.objects:
+    obj.select_set(obj.type == "MESH")
+    bpy.ops.object.shade_smooth()
+    bpy.ops.object.select_all(action='DESELECT')
+    
+    
+
+for collection in bpy.data.collections:
+    if objectName in collection.name:
+        for obj in collection.all_objects:
+          if ".mo" in obj.name:
+            bpy.context.view_layer.objects.active = obj
+        
+            for slotIndex in range(len(obj.material_slots[:])):
+                #print("MATERIAL INDEX", slotIndex, str(obj.material_slots[:][slotIndex].material).replace("<bpy_struct, Material(\"", "").replace("\")>", ""))
+                for processedIndex in range(len(processed["Materials"])):
+                    if str((processed["Materials"][processedIndex]["MaterialName"])).lower() in str(obj.material_slots[:][slotIndex].material).lower():
+                        #print("PROCESSED INDEX", processedIndex, processed["Materials"][processedIndex]["MaterialName"])
+                        textureSkin(str(obj.material_slots[:][slotIndex].material).replace("<bpy_struct, Material(\"", "").replace("\")>", ""), processedIndex)
