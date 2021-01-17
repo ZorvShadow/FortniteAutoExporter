@@ -25,7 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
-public class Character {
+public class Glider {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("FortniteAutoExporter");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -36,143 +36,84 @@ public class Character {
 
     private static IoPackage pkg;
     private static long start;
-    private static String STWHeroOverride = "";
 
-    public static void promptSkin() throws Exception {
-        System.out.println("\nCurrent Character Types:\nBattleRoyale\nSaveTheWorld\n");
-        System.out.println("Character Type to Export:");
-        String selection = new Scanner(System.in).nextLine();
-
-        switch (selection) {
-            case "SaveTheWorld":
-            case "savetheworld":
-                System.out.println("Enter Hero ID Path:");
-                STWHeroOverride = new Scanner(System.in).nextLine().replace(".uasset", "") + ".uasset";
-
-            case "BattleRoyale":
-            case "battleroyale":
-                break;
-
-            default:
-                System.out.println("Invalid Selection!");
-        }
-
+    public static void promptGlider() throws Exception {
         try (FileReader reader = new FileReader(new File("config.json"))) {
             config = GSON.fromJson(reader, Config.class);
         }
 
-        if (STWHeroOverride.isEmpty()) {
-            System.out.println("Enter Skin Name:");
-            String skinSelection = new Scanner(System.in).nextLine().replace(" ", "%20").replace(".uasset", "");
-            start = System.currentTimeMillis();
-            String skinSelectionFormat = String.format("https://benbotfn.tk/api/v1/cosmetics/br/search/all?lang=en&searchLang=en&matchMethod=full&name=%s&backendType=AthenaCharacter", skinSelection);
-            Reader reader = new OkHttpClient().newCall(new Request.Builder().url(skinSelectionFormat).build()).execute().body().charStream();
-            cosmeticResponse = GSON.fromJson(reader, CosmeticResponse[].class);
-            reader.close();
+        System.out.println("Enter Glider Name:");
+        String selection = new Scanner(System.in).nextLine().replace(" ", "%20").replace(".uasset", "");
+        start = System.currentTimeMillis();
+        String skinSelectionFormat = String.format("https://benbotfn.tk/api/v1/cosmetics/br/search/all?lang=en&searchLang=en&matchMethod=full&name=%s&backendType=AthenaGlider", selection);
+        Reader reader = new OkHttpClient().newCall(new Request.Builder().url(skinSelectionFormat).build()).execute().body().charStream();
+        cosmeticResponse = GSON.fromJson(reader, CosmeticResponse[].class);
+        reader.close();
 
-            if (cosmeticResponse.length == 0) {
-                LOGGER.error("Skin Not Found.");
-                promptSkin();
-            }
+        if (cosmeticResponse.length == 0) {
+            LOGGER.error("Glider Not Found.");
+            promptGlider();
+        }
 
-            if (cosmeticResponse[0].path == null) {
-                LOGGER.error("Invalid Skin Selection.");
-                promptSkin();
-            }
+        if (cosmeticResponse[0].path == null) {
+            LOGGER.error("Invalid Glider Selection.");
+            promptGlider();
         }
 
         fileProvider = new DefaultFileProvider(new File(config.PaksDirectory), config.UEVersion);
         fileProvider.submitKey(FGuid.Companion.getMainGuid(), config.EncryptionKey);
 
-        Reader reader = new OkHttpClient().newCall(new Request.Builder().url("https://benbotfn.tk/api/v1/mappings").build()).execute().body().charStream();
+        reader = new OkHttpClient().newCall(new Request.Builder().url("https://benbotfn.tk/api/v1/mappings").build()).execute().body().charStream();
         mappingsResponse[] mappingsResponse = GSON.fromJson(reader, mappingsResponse[].class);
         UsmapTypeMappingsProvider mappingsProvider = new UsmapTypeMappingsProvider(new File(System.getProperty("user.dir") + "/Mappings/" + mappingsResponse[0].fileName));
         mappingsProvider.reload();
         fileProvider.setMappingsProvider(mappingsProvider);
 
-        if (STWHeroOverride.isEmpty()) {
-            pkg = (IoPackage) fileProvider.loadGameFile(cosmeticResponse[0].path + ".uasset");
+        pkg = (IoPackage) fileProvider.loadGameFile(cosmeticResponse[0].path + ".uasset");
 
-            if (pkg == null) {
-                LOGGER.error("Error Parsing Package.");
-            }
+        if (pkg == null) {
+            LOGGER.error("Error Parsing Package.");
         }
 
-        processSkin();
+        processGlider();
     }
-    public static void processSkin() {
+    public static void processGlider() {
         try {
-            String HIDPath;
-            String toJson;
-            if (!STWHeroOverride.isEmpty()) {
-                HIDPath = STWHeroOverride;
-            } else {
-                // CID to HID
-                toJson = JWPSerializer.GSON.toJson(pkg.getExports());
-                CIDStructure[] cidStructure = GSON.fromJson(toJson, CIDStructure[].class);
-                HIDPath = "/Game/Athena/Heroes/" + cidStructure[0].HeroDefinition[0] + ".uasset";
-            }
-
-            // HID to HS
-            pkg = (IoPackage) fileProvider.loadGameFile(HIDPath);
-            toJson = JWPSerializer.GSON.toJson(pkg.getExports());
-
-            HIDStructure[] hidStructure = GSON.fromJson(toJson, HIDStructure[].class);
-            String HSPath = hidStructure[0].Specializations[0].asset_path_name.split("\\.")[0];
-
-
-            // HS to CP
-            pkg = (IoPackage) fileProvider.loadGameFile(HSPath + ".uasset");
-            toJson = JWPSerializer.GSON.toJson(pkg.getExports());
-            HSStructure[] hsStructure = GSON.fromJson(toJson, HSStructure[].class);
-
-            List<String> CharacterParts = new ArrayList<>();
-            for (int i : range(hsStructure[0].CharacterParts.length)) {
-                CharacterParts.add(hsStructure[0].CharacterParts[i].asset_path_name.split("\\.")[0]);
-            }
-
-            // CP to Mesh to Material
+            // Glider to Mesh to Material
             List<String> MeshesList = new ArrayList<>();
             List<overrideStructure3D> MaterialsList = new ArrayList<>();
-            for (int i : range(hsStructure[0].CharacterParts.length))  {
-                pkg = (IoPackage) fileProvider.loadGameFile(CharacterParts.toArray()[i] + ".uasset");
-                String toJsonCP =  JWPSerializer.GSON.toJson(pkg.getExports());
-                CPStructure[] cpStructure = GSON.fromJson(toJsonCP, CPStructure[].class);
-                MeshesList.add(cpStructure[1].SkeletalMesh.asset_path_name.split("\\.")[0]);
+            String toJson =  JWPSerializer.GSON.toJson(pkg.getExports());
+            CPStructure[] cpStructure = GSON.fromJson(toJson, CPStructure[].class);
+            MeshesList.add(cpStructure[0].SkeletalMesh.asset_path_name.split("\\.")[0]);
 
-                if (toJsonCP.contains("OverrideMaterial")) {
-                    for (int j : range(cpStructure[1].MaterialOverrides.length)) {
-                        MaterialsList.add(new overrideStructure3D(cpStructure[1].SkeletalMesh.asset_path_name.split("\\.")[1],
-                                cpStructure[1].MaterialOverrides[j].OverrideMaterial.asset_path_name.split("\\.")[0],
-                                cpStructure[1].MaterialOverrides[j].MaterialOverrideIndex,
-                                "true"));
-                    }
-                } else {
-                    pkg = (IoPackage) fileProvider.loadGameFile(cpStructure[1].SkeletalMesh.asset_path_name.split("\\.")[0] + ".uasset");
-                    for (FPackageObjectIndex e : pkg.getImportMap()) {
-                        if (e.isNull()) {
-                            break;
-                        } else {
-                            if (pkg.resolveObjectIndex(e, true).getPkg().toString().contains("Material")) {
-                                MaterialsList.add(new overrideStructure3D(cpStructure[1].SkeletalMesh.asset_path_name.split("\\.")[1],
-                                        pkg.resolveObjectIndex(e, true).getPkg().toString(),
-                                        0,
-                                        "false"));
-                            }
+            if (toJson.contains("OverrideMaterial")) {
+                for (int j : range(cpStructure[0].MaterialOverrides.length)) {
+                    MaterialsList.add(new overrideStructure3D(cpStructure[0].SkeletalMesh.asset_path_name.split("\\.")[1],
+                            cpStructure[0].MaterialOverrides[j].OverrideMaterial.asset_path_name.split("\\.")[0],
+                            cpStructure[0].MaterialOverrides[j].MaterialOverrideIndex,
+                            "true"));
+                }
+            } else {
+                pkg = (IoPackage) fileProvider.loadGameFile(cpStructure[0].SkeletalMesh.asset_path_name.split("\\.")[0] + ".uasset");
+                for (FPackageObjectIndex e : pkg.getImportMap()) {
+                    if (e.isNull()) {
+                        break;
+                    } else {
+                        if (pkg.resolveObjectIndex(e, true).getPkg().toString().contains("Material")) {
+                            MaterialsList.add(new overrideStructure3D(cpStructure[0].SkeletalMesh.asset_path_name.split("\\.")[1],
+                                    pkg.resolveObjectIndex(e, true).getPkg().toString(),
+                                    0,
+                                    "false"));
                         }
                     }
                 }
-
             }
+
 
             // Create processed.json
             JsonObject processedRoot = new JsonObject();
-            if (!STWHeroOverride.isEmpty()) {
-                processedRoot.addProperty("objectName", STWHeroOverride.split("/")[STWHeroOverride.split("/").length - 1]
-                        .replace(".uasset", ""));
-            } else {
-                processedRoot.addProperty("objectName", cosmeticResponse[0].name);
-            }
+            processedRoot.addProperty("objectName", cosmeticResponse[0].name);
+
 
             JsonArray meshArray = new JsonArray();
             processedRoot.add("Meshes", meshArray);
@@ -225,7 +166,7 @@ public class Character {
                         }
                     }
                 }
-                scalarParameterMaterialStructure[] scalarParameterMaterialStructure = GSON.fromJson(toJson, Character.scalarParameterMaterialStructure[].class);
+                scalarParameterMaterialStructure[] scalarParameterMaterialStructure = GSON.fromJson(toJson, scalarParameterMaterialStructure[].class);
                 if (toJson.contains("ScalarParameterValues")) {
                     for (int e : range(scalarParameterMaterialStructure[0].ScalarParameterValues.length)) {
                         String scalarType = scalarParameterMaterialStructure[0].ScalarParameterValues[e].ParameterInfo.Name;
@@ -235,7 +176,7 @@ public class Character {
                     }
                 }
 
-                vectorParameterMaterialStructure[] vectorParameterMaterialStructure = GSON.fromJson(toJson, Character.vectorParameterMaterialStructure[].class);
+                vectorParameterMaterialStructure[] vectorParameterMaterialStructure = GSON.fromJson(toJson, vectorParameterMaterialStructure[].class);
                 if (toJson.contains("VectorParameterValues")) {
                     for (int e : range(vectorParameterMaterialStructure[0].VectorParameterValues.length)) {
                         String vectorType = vectorParameterMaterialStructure[0].VectorParameterValues[e].ParameterInfo.Name;
@@ -276,7 +217,7 @@ public class Character {
                 pb.start().waitFor();
             }
 
-            LOGGER.info(String.format("Finished Exporting in %.1f sec. Replace the line with workingDirectory in the python script with this line:\n\nworkingDirectory = r\"%s\"\n",  (System.currentTimeMillis() - start) / 1000.0F, new File("").getAbsolutePath()));
+            LOGGER.info(String.format("Finished Exporting in %.1f sec. Replace the line with workingDirectory in the python script with this line:\n\nworkingDirectory = r\"%s\"\n\n",  (System.currentTimeMillis() - start) / 1000.0F, new File("").getAbsolutePath()));
             Main.selectItemType();
         } catch (Exception exception) {
             exception.printStackTrace();
@@ -290,20 +231,8 @@ public class Character {
         return new IntRange(0, max-1);
     }
 
-    public static class CIDStructure {
-        private String[] HeroDefinition;
-    }
-    public static class HIDStructure {
-        private Specializations[] Specializations;
-        public class Specializations {
-            public String asset_path_name;
-        }
-    }
-    public static class HSStructure {
-        private PathName[] CharacterParts;
-        public class PathName {
-            public String asset_path_name;
-        }
+    public static class BIDStructure {
+        public List<List<String>> CharacterParts;
     }
     public static class CPStructure {
         private SkeletalMesh SkeletalMesh;
@@ -376,7 +305,6 @@ public class Character {
         private String PaksDirectory;
         private Ue4Version UEVersion;
         private String EncryptionKey;
-        private String STWHeroOverride = "";
         private boolean exportAssets;
         private boolean dumpMaterials;
 

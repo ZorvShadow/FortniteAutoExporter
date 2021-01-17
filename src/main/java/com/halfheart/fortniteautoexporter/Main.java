@@ -13,14 +13,14 @@ import java.util.*;
 
 import static com.halfheart.fortniteautoexporter.Character.*;
 import static com.halfheart.fortniteautoexporter.Backpack.*;
+import static com.halfheart.fortniteautoexporter.Weapon.*;
+import static com.halfheart.fortniteautoexporter.Pickaxe.*;
+import static com.halfheart.fortniteautoexporter.Glider.*;
 
 public class Main {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("FortniteAutoExporter");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-
-    private static Config config;
-    private static File pakDir;
 
     public static void main(String[] Args) throws Exception {
         updateMappings();
@@ -34,13 +34,14 @@ public class Main {
 
         LOGGER.info("Reading config file at " + configFile.getAbsolutePath());
 
+        Config config;
         try (FileReader reader = new FileReader(configFile)) {
             config = GSON.fromJson(reader, Config.class);
         }
 
         LOGGER.info("Unreal Version: " + config.UEVersion);
 
-        pakDir = new File(config.PaksDirectory);
+        File pakDir = new File(config.PaksDirectory);
 
         if (!pakDir.exists()) {
             LOGGER.error("Directory " + pakDir.getAbsolutePath() + " does not exist.");
@@ -58,17 +59,33 @@ public class Main {
     }
 
     public static void selectItemType() throws Exception {
-        System.out.println("\nCurrent Item Types:\nCharacter\nBackpack\n");
+        System.out.println("\nCurrent Item Types:\nCharacter\nBackpack\nPickaxe\nGlider\nWeapon\n");
         System.out.println("Item Type to Export:");
         String selection = new Scanner(System.in).nextLine();
         switch (selection) {
             case "Character":
             case "character":
-                while (true) promptSkin();
+                promptSkin();
 
             case "Backpack":
             case "backpack":
-                while (true) promptBackpack();
+                promptBackpack();
+
+            case "Weapon":
+            case "weapon":
+                promptWeapon();
+
+            case "Pickaxe":
+            case "pickaxe":
+                promptPickaxe();
+
+            case "Glider":
+            case "glider":
+                promptGlider();
+
+            default:
+                System.out.println("Invalid Selection!");
+                selectItemType();
         }
     }
 
@@ -93,10 +110,8 @@ public class Main {
         private String PaksDirectory;
         private Ue4Version UEVersion;
         private String EncryptionKey;
-        private String STWHeroOverride;
         private boolean exportAssets;
         private boolean dumpMaterials;
-
     }
 
     public static class mappingsResponse {

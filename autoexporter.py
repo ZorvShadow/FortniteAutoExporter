@@ -4,7 +4,7 @@ Fortnite Auto Exporter by Half
 
 # SETTINGS
 
-workingDirectory = workingDirectory = r"D:\Blender Files\Fortnite Auto Exporter"
+workingDirectory = r"D:\Blender Files\Fortnite Auto Exporter"
 
 bReorientBones = True
 textureCharacter = True
@@ -46,6 +46,7 @@ def textureSkin(NameOrIndex, Index, useMaterialSlotIndex):
     if useMaterialSlotIndex == False:
         mat = bpy.data.materials[NameOrIndex]
     mat.use_nodes = True
+    mat.name = processed["Materials"][Index]["MaterialName"]
 
     nodes = mat.node_tree.nodes
 
@@ -182,5 +183,5 @@ for collection in bpy.data.collections:
                             if processed["Materials"][processedIndex]["TargetMesh"] == obj.name.replace(".mo", ""):
                                 textureSkin(processed["Materials"][processedIndex]["OverrideIndex"], processedIndex, True)
                             
-                            
+#bpy.context.view_layer.active_layer_collection = "Scene Collection"                            
                             

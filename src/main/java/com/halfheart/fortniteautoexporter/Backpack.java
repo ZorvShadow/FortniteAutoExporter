@@ -43,7 +43,7 @@ public class Backpack {
         }
 
         System.out.println("Enter Backpack Name:");
-        String selection = new Scanner(System.in).nextLine().replace(" ", "%20");
+        String selection = new Scanner(System.in).nextLine().replace(" ", "%20").replace(".uasset", "");
         start = System.currentTimeMillis();
         String skinSelectionFormat = String.format("https://benbotfn.tk/api/v1/cosmetics/br/search/all?lang=en&searchLang=en&matchMethod=full&name=%s&backendType=AthenaBackpack", selection);
         Reader reader = new OkHttpClient().newCall(new Request.Builder().url(skinSelectionFormat).build()).execute().body().charStream();
@@ -82,14 +82,12 @@ public class Backpack {
             //BID to CP
             String toJson =  JWPSerializer.GSON.toJson(pkg.getExports());
             BIDStructure[] bidStructure = GSON.fromJson(toJson, BIDStructure[].class);
-            System.out.println(bidStructure[0].CharacterParts.get(0).get(1) + ".uasset");
             pkg = (IoPackage) fileProvider.loadGameFile(bidStructure[0].CharacterParts.get(0).get(1) + ".uasset");
 
             // CP to Mesh to Material
             List<String> MeshesList = new ArrayList<>();
             List<overrideStructure3D> MaterialsList = new ArrayList<>();
             toJson =  JWPSerializer.GSON.toJson(pkg.getExports());
-            System.out.println(toJson);
             CPStructure[] cpStructure = GSON.fromJson(toJson, CPStructure[].class);
             MeshesList.add(cpStructure[1].SkeletalMesh.asset_path_name.split("\\.")[0]);
 
@@ -224,8 +222,8 @@ public class Backpack {
                 pb.start().waitFor();
             }
 
-            LOGGER.info(String.format("Finished Exporting in %.1f sec. Replace the line with workingDirectory in the python script with this line:\n\nworkingDirectory = r\"%s\"",  (System.currentTimeMillis() - start) / 1000.0F, new File("").getAbsolutePath()));
-
+            LOGGER.info(String.format("Finished Exporting in %.1f sec. Replace the line with workingDirectory in the python script with this line:\n\nworkingDirectory = r\"%s\"\n\n",  (System.currentTimeMillis() - start) / 1000.0F, new File("").getAbsolutePath()));
+            Main.selectItemType();
         } catch (Exception exception) {
             exception.printStackTrace();
         }
