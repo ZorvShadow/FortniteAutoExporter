@@ -4,7 +4,7 @@ Fortnite Auto Exporter by Half
 
 # SETTINGS
 
-workingDirectory = r"G:\umodel_win32\FortniteAutoExporter\FortniteAutoExporter"
+workingDirectory = workingDirectory = r"D:\Blender Files\Fortnite Auto Exporter"
 
 bReorientBones = True
 textureCharacter = True
@@ -40,9 +40,11 @@ def formatMeshPath(path: str):
     path = path[1:] if path.startswith("/") else path
     return os.path.join(workingDirectory, "UmodelExport", path) + ".psk"
 
-
-def textureSkin(MaterialName, Index):
-    mat = bpy.data.materials[MaterialName]
+def textureSkin(NameOrIndex, Index, useMaterialSlotIndex):
+    if useMaterialSlotIndex == True:
+        mat = bpy.data.materials[obj.material_slots[:][NameOrIndex].name]
+    if useMaterialSlotIndex == False:
+        mat = bpy.data.materials[NameOrIndex]
     mat.use_nodes = True
 
     nodes = mat.node_tree.nodes
@@ -96,12 +98,12 @@ def textureSkin(MaterialName, Index):
         node.hide = True
         link = links.new(node.outputs[0], group.inputs[4])
 
-    if "Emissive" in processed["Materials"][Index]:
-        node = nodes.new(type="ShaderNodeTexImage")
-        node.image = bpy.data.images.load(formatImagePath(Index, "Emissive"))
-        node.location = -400, -325
-        node.hide = True
-        link = links.new(node.outputs[0], group.inputs[11])
+    if "Emissive" in processed["Materials"][Index] and "FX" not in processed["Materials"][Index]["Emissive"]:
+        emissive_node = nodes.new(type="ShaderNodeTexImage")
+        emissive_node.image = bpy.data.images.load(formatImagePath(Index, "Emissive"))
+        emissive_node.location = -400, -325
+        emissive_node.hide = True
+        link = links.new(emissive_node.outputs[0], group.inputs[11])
 
     if "SkinFX_Mask" in processed["Materials"][Index]:
         node = nodes.new(type="ShaderNodeTexImage")
@@ -112,14 +114,21 @@ def textureSkin(MaterialName, Index):
         frame.location = -800, -100
         node.parent = frame
         frame.label = "SkinFX_Mask"
+        
+    
+
 
     # PARAMETER CHECKING
 
     if "emissive mult" in processed["Materials"][Index]:
-        bpy.data.node_groups["Fortnite Auto Exporter Shader"].inputs[
-            12
-        ].default_value = processed["Materials"][Index]["emissive mult"]
-
+        bpy.data.node_groups["Fortnite Auto Exporter Shader"].inputs[12].default_value = processed["Materials"][Index]["emissive mult"]
+        
+    if "Skin Boost Color And Exponent" in processed["Materials"][Index]:
+        vector = processed["Materials"][Index]["Skin Boost Color And Exponent"].split(",")
+        bpy.data.materials[str(mat.name)].node_tree.nodes["Group"].inputs[17].default_value = float(vector[0]), float(vector[1]),float(vector[2]), float(vector[3])
+        
+    # FINAL ADJUSTMENTS
+    
     link = links.new(group.outputs[0], node_output.inputs[0])
 
     ob = bpy.context.view_layer.objects.active
@@ -148,7 +157,6 @@ for obj in bpy.context.scene.objects:
     bpy.ops.object.shade_smooth()
     bpy.ops.object.select_all(action="DESELECT")
 
-
 for collection in bpy.data.collections:
     if objectName in collection.name:
         for obj in collection.all_objects:
@@ -160,12 +168,19 @@ for collection in bpy.data.collections:
                     print("MATERIAL", Material_name)
 
                     for processedIndex in range(len(processed["Materials"])):
-                        if (
-                            processed["Materials"][processedIndex]["MaterialName"]
-                        ).lower() == Material_name.lower():
-                            print(
-                                "PROCESSED INDEX",
-                                processedIndex,
-                                processed["Materials"][processedIndex]["MaterialName"],
-                            )
-                            textureSkin(Material_name, processedIndex)
+                        
+                        if processed["Materials"][processedIndex]["useOverride"] == "false":             
+                            if processed["Materials"][processedIndex]["MaterialName"].lower() == Material_name.lower():
+                                print(
+                                    "PROCESSED INDEX",
+                                    processedIndex,
+                                    processed["Materials"][processedIndex]["MaterialName"],
+                                )
+                                textureSkin(Material_name, processedIndex, False)
+                                
+                        if processed["Materials"][processedIndex]["useOverride"] == "true":
+                            if processed["Materials"][processedIndex]["TargetMesh"] == obj.name.replace(".mo", ""):
+                                textureSkin(processed["Materials"][processedIndex]["OverrideIndex"], processedIndex, True)
+                            
+                            
+                            
