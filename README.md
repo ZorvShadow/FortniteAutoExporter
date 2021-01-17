@@ -32,5 +32,6 @@ A tool made in Java/Python to automatically import Fortnite Skins into blender
 * The Latest [Blender PSK/PSA Import Plguin](https://github.com/Befzz/blender3d_import_psk_psa)
 
 ## Limitations
-* Override Materials aren't currently supported
 * Skin Styles aren't currently supported
+
+
