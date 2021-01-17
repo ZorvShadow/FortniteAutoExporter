@@ -183,5 +183,26 @@ for collection in bpy.data.collections:
                                 
                         if processed["Materials"][processedIndex]["useOverride"] == "true":
                             if processed["Materials"][processedIndex]["TargetMesh"] == obj.name.replace(".mo", ""):
-                                textureSkin(processed["Materials"][processedIndex]["OverrideIndex"], processedIndex, True)                       
+                                textureSkin(processed["Materials"][processedIndex]["OverrideIndex"], processedIndex, True)    
+                                
+                        if "Glass" in Material_name:
+                            mat = bpy.data.materials[Material_name]
+                            mat.use_nodes = True
+                            mat.blend_method = 'BLEND'
+                            mat.show_transparent_back = False
+
+                            mat.node_tree.nodes.clear()
+
+                            glass = mat.node_tree.nodes.new("ShaderNodeBsdfGlass")
+                            glass.location = -200, 100
+                            mix = mat.node_tree.nodes.new("ShaderNodeMixShader")
+                            transparent = mat.node_tree.nodes.new("ShaderNodeBsdfTransparent")
+                            transparent.location = -200, -100
+                            node_output = mat.node_tree.nodes.new(type="ShaderNodeOutputMaterial")
+                            node_output.location = 200, 0
+                            
+                            links = mat.node_tree.links
+                            links.new(glass.outputs[0], mix.inputs[1])
+                            links.new(transparent.outputs[0], mix.inputs[2]) 
+                            links.new(mix.outputs[0], node_output.inputs[0])                   
                             
