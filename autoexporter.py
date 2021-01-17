@@ -144,6 +144,8 @@ processed = json.loads(open("processed.json", "r").read())
 objectName = processed.get("objectName")
 objectCollection()
 
+bpy.context.scene.collection.children[0]
+
 for mesh in processed["Meshes"]:
     formatFilePath = formatMeshPath(mesh)    
     if not os.path.exists(formatFilePath):
@@ -181,7 +183,5 @@ for collection in bpy.data.collections:
                                 
                         if processed["Materials"][processedIndex]["useOverride"] == "true":
                             if processed["Materials"][processedIndex]["TargetMesh"] == obj.name.replace(".mo", ""):
-                                textureSkin(processed["Materials"][processedIndex]["OverrideIndex"], processedIndex, True)
-                            
-#bpy.context.view_layer.active_layer_collection = "Scene Collection"                            
+                                textureSkin(processed["Materials"][processedIndex]["OverrideIndex"], processedIndex, True)                       
                             
