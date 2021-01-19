@@ -1,9 +1,6 @@
 package com.halfheart.fortniteautoexporter;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
+import com.google.gson.*;
 import kotlin.io.FilesKt;
 import kotlin.ranges.IntRange;
 import me.fungames.jfortniteparse.fileprovider.DefaultFileProvider;
@@ -20,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -28,7 +26,9 @@ import java.util.Scanner;
 public class Glider {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("FortniteAutoExporter");
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson GSON = new GsonBuilder()
+            .setPrettyPrinting()
+            .create();
 
     private static Config config;
     private static CosmeticResponse[] cosmeticResponse;
@@ -141,6 +141,7 @@ public class Glider {
                     FilesKt.writeBytes(materialFile, toJson.getBytes());
                 }
 
+
                 JsonObject MaterialName = new JsonObject();
                 materialArray.add(MaterialName);
                 String[] splitMaterialsList = MaterialsList.get(i).materialPath.split("/");
@@ -149,13 +150,14 @@ public class Glider {
                 MaterialName.addProperty("OverrideIndex", MaterialsList.get(i).overrideIndex);
                 MaterialName.addProperty("TargetMesh", MaterialsList.get(i).meshName);
                 MaterialName.addProperty("useOverride", MaterialsList.get(i).isOverride);
+                MaterialName.addProperty("meshType", "psk");
 
                 String textureType;
-                String textureValue;
+                String textureValue = "";
                 if (toJson.contains("TextureParameterValues")) {
                     for (int e : range(materialStructure[0].TextureParameterValues.length)) {
                         textureType = materialStructure[0].TextureParameterValues[e].ParameterInfo.Name;
-                        textureValue = materialStructure[0].TextureParameterValues[e].ParameterValue[1];
+                        textureValue = materialStructure[0].TextureParameterValues[e].ParameterValue[0];
 
                         for (FPackageObjectIndex j : pkg.getImportMap()) {
                             if (j.isNull()) {
@@ -210,7 +212,6 @@ public class Glider {
                         printWriter.println("-pkg=" + mats.materialPath);
                     }
                 }
-                Thread.sleep(5000);
                 ProcessBuilder pb = new ProcessBuilder(Arrays.asList("umodel", "@umodel_queue.txt"));
                 pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
                 pb.redirectError(ProcessBuilder.Redirect.INHERIT);
@@ -300,6 +301,7 @@ public class Glider {
             this.isOverride = isOverride;
         }
     }
+
 
     public static class Config {
         private String PaksDirectory;

@@ -39,22 +39,17 @@ public class Character {
     private static String STWHeroOverride = "";
 
     public static void promptSkin() throws Exception {
-        System.out.println("\nCurrent Character Types:\nBattleRoyale\nSaveTheWorld\n");
+        System.out.println("\nCurrent Character Types:\nBR\nStW\n");
         System.out.println("Character Type to Export:");
         String selection = new Scanner(System.in).nextLine();
 
-        switch (selection) {
-            case "SaveTheWorld":
-            case "savetheworld":
-                System.out.println("Enter Hero ID Path:");
-                STWHeroOverride = new Scanner(System.in).nextLine().replace(".uasset", "") + ".uasset";
-
-            case "BattleRoyale":
-            case "battleroyale":
-                break;
-
-            default:
-                System.out.println("Invalid Selection!");
+        if (selection.equalsIgnoreCase("StW")) {
+            System.out.println("Enter Hero ID Path:");
+            STWHeroOverride = new Scanner(System.in).nextLine().replace(".uasset", "") + ".uasset";
+        } else if (selection.equalsIgnoreCase("BR")) {
+        } else {
+            System.out.println("Invalid Selection!");
+            promptSkin();
         }
 
         try (FileReader reader = new FileReader(new File("config.json"))) {
@@ -62,8 +57,8 @@ public class Character {
         }
 
         if (STWHeroOverride.isEmpty()) {
-            System.out.println("Enter Skin Name:");
-            String skinSelection = new Scanner(System.in).nextLine().replace(" ", "%20").replace(".uasset", "");
+            System.out.println("Enter Character Name:");
+            String skinSelection = new Scanner(System.in).nextLine().replace(".uasset", "");
             start = System.currentTimeMillis();
             String skinSelectionFormat = String.format("https://benbotfn.tk/api/v1/cosmetics/br/search/all?lang=en&searchLang=en&matchMethod=full&name=%s&backendType=AthenaCharacter", skinSelection);
             Reader reader = new OkHttpClient().newCall(new Request.Builder().url(skinSelectionFormat).build()).execute().body().charStream();
@@ -71,12 +66,12 @@ public class Character {
             reader.close();
 
             if (cosmeticResponse.length == 0) {
-                LOGGER.error("Skin Not Found.");
+                LOGGER.error("Character Not Found.");
                 promptSkin();
             }
 
             if (cosmeticResponse[0].path == null) {
-                LOGGER.error("Invalid Skin Selection.");
+                LOGGER.error("Invalid Character Selection.");
                 promptSkin();
             }
         }
@@ -100,7 +95,7 @@ public class Character {
 
         processSkin();
     }
-    public static void processSkin() {
+    public static void processSkin() throws Exception {
         try {
             String HIDPath;
             String toJson;
@@ -147,7 +142,7 @@ public class Character {
                                 cpStructure[1].MaterialOverrides[j].MaterialOverrideIndex,
                                 "true"));
                     }
-                } else {
+                } if (true) {
                     pkg = (IoPackage) fileProvider.loadGameFile(cpStructure[1].SkeletalMesh.asset_path_name.split("\\.")[0] + ".uasset");
                     for (FPackageObjectIndex e : pkg.getImportMap()) {
                         if (e.isNull()) {
@@ -208,6 +203,7 @@ public class Character {
                 MaterialName.addProperty("OverrideIndex", MaterialsList.get(i).overrideIndex);
                 MaterialName.addProperty("TargetMesh", MaterialsList.get(i).meshName);
                 MaterialName.addProperty("useOverride", MaterialsList.get(i).isOverride);
+                MaterialName.addProperty("meshType", "psk");
 
                 String textureType;
                 String textureValue;
@@ -269,7 +265,7 @@ public class Character {
                         printWriter.println("-pkg=" + mats.materialPath);
                     }
                 }
-                Thread.sleep(5000);
+                
                 ProcessBuilder pb = new ProcessBuilder(Arrays.asList("umodel", "@umodel_queue.txt"));
                 pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
                 pb.redirectError(ProcessBuilder.Redirect.INHERIT);
@@ -280,6 +276,7 @@ public class Character {
             Main.selectItemType();
         } catch (Exception exception) {
             exception.printStackTrace();
+            Main.selectItemType();
         }
 
 
@@ -288,6 +285,24 @@ public class Character {
 
     public static IntRange range(int max) {
         return new IntRange(0, max-1);
+    }
+
+    public static void selectSwitch(String selection) throws Exception {
+        switch (selection) {
+            case "StW":
+            case "stw":
+            case "STW":
+                System.out.println("Enter Hero ID Path:");
+                STWHeroOverride = new Scanner(System.in).nextLine().replace(".uasset", "") + ".uasset";
+
+            case "BR":
+            case "br":
+                break;
+
+            default:
+                System.out.println("Invalid Selection!");
+                promptSkin();
+        }
     }
 
     public static class CIDStructure {

@@ -16,6 +16,7 @@ import static com.halfheart.fortniteautoexporter.Backpack.*;
 import static com.halfheart.fortniteautoexporter.Weapon.*;
 import static com.halfheart.fortniteautoexporter.Pickaxe.*;
 import static com.halfheart.fortniteautoexporter.Glider.*;
+import static com.halfheart.fortniteautoexporter.Mesh.*;
 
 public class Main {
 
@@ -59,7 +60,8 @@ public class Main {
     }
 
     public static void selectItemType() throws Exception {
-        System.out.println("\nCurrent Item Types:\nCharacter\nBackpack\nPickaxe\nGlider\nWeapon\n");
+        Thread.sleep(1000);
+        System.out.println("\nCurrent Item Types:\nCharacter\nBackpack\nPickaxe\nGlider\nWeapon\nMesh\n");
         System.out.println("Item Type to Export:");
         String selection = new Scanner(System.in).nextLine();
         switch (selection) {
@@ -82,6 +84,10 @@ public class Main {
             case "Glider":
             case "glider":
                 promptGlider();
+
+            case "Mesh":
+            case "mesh":
+                promptMesh();
 
             default:
                 System.out.println("Invalid Selection!");

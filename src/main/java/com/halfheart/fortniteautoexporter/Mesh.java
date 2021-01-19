@@ -11,8 +11,6 @@ import me.fungames.jfortniteparse.tb24.JWPSerializer;
 import me.fungames.jfortniteparse.ue4.assets.IoPackage;
 import me.fungames.jfortniteparse.ue4.assets.mappings.UsmapTypeMappingsProvider;
 import me.fungames.jfortniteparse.ue4.asyncloading2.FPackageObjectIndex;
-import me.fungames.jfortniteparse.ue4.locres.FnLanguage;
-import me.fungames.jfortniteparse.ue4.locres.Locres;
 import me.fungames.jfortniteparse.ue4.objects.core.misc.FGuid;
 import me.fungames.jfortniteparse.ue4.versions.Ue4Version;
 import okhttp3.OkHttpClient;
@@ -27,7 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
-public class Weapon {
+public class Mesh {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("FortniteAutoExporter");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -38,12 +36,12 @@ public class Weapon {
     private static IoPackage pkg;
     private static long start;
 
-    public static void promptWeapon() throws Exception {
+    public static void promptMesh() throws Exception {
         try (FileReader reader = new FileReader(new File("config.json"))) {
             config = GSON.fromJson(reader, Config.class);
         }
 
-        System.out.println("Enter Weapon ID Path:");
+        System.out.println("Enter Mesh Path:");
         String selection = new Scanner(System.in).nextLine().replace(".uasset", "");
         start = System.currentTimeMillis();
 
@@ -62,27 +60,22 @@ public class Weapon {
             LOGGER.error("Error Parsing Package.");
         }
 
-        processWeapon();
+        processMesh();
     }
-    public static void processWeapon() {
+    public static void processMesh() {
         try {
-            //WID to Mesh
             List<String> MeshesList = new ArrayList<>();
             List<overrideStructure3D> MaterialsList = new ArrayList<>();
-            String toJson =  JWPSerializer.GSON.toJson(pkg.getExports());
-            System.out.println(toJson);
-            WIDStructure[] widStructure = GSON.fromJson(toJson, WIDStructure[].class);
-            pkg = (IoPackage) fileProvider.loadGameFile(widStructure[0].WeaponMeshOverride.asset_path_name.split("\\.")[0] + ".uasset");
-            MeshesList.add(widStructure[0].WeaponMeshOverride.asset_path_name.split("\\.")[0]);
+            MeshesList.add(pkg.getPathName());
 
             //Mesh to Material
-            pkg = (IoPackage) fileProvider.loadGameFile(widStructure[0].WeaponMeshOverride.asset_path_name.split("\\.")[0] + ".uasset");
+            pkg = (IoPackage) fileProvider.loadGameFile(pkg.getPathName() + ".uasset");
             for (FPackageObjectIndex e : pkg.getImportMap()) {
                 if (e.isNull()) {
                     break;
                 } else {
                     if (pkg.resolveObjectIndex(e, true).getPkg().toString().contains("Material")) {
-                        MaterialsList.add(new overrideStructure3D(widStructure[0].WeaponMeshOverride.asset_path_name.split("\\.")[1],
+                        MaterialsList.add(new overrideStructure3D(pkg.getPathName().split("/")[pkg.getPathName().split("/").length - 1],
                                 pkg.resolveObjectIndex(e, true).getPkg().toString(),
                                 0,
                                 "false"));
@@ -93,7 +86,7 @@ public class Weapon {
 
             // Create processed.json
             JsonObject processedRoot = new JsonObject();
-            processedRoot.addProperty("objectName", MaterialsList.get(0).meshName);
+            processedRoot.addProperty("objectName", MeshesList.get(0).split("/")[MeshesList.get(0).split("/").length - 1]);
 
 
             JsonArray meshArray = new JsonArray();
@@ -109,7 +102,7 @@ public class Weapon {
             for (int i : range(MaterialsList.toArray().length)) {
 
                 pkg = (IoPackage) fileProvider.loadGameFile(MaterialsList.get(i).materialPath);
-                toJson = JWPSerializer.GSON.toJson(pkg.getExports());
+                String toJson = JWPSerializer.GSON.toJson(pkg.getExports());
                 textureParameterMaterialStructure[] materialStructure = GSON.fromJson(toJson, textureParameterMaterialStructure[].class);
 
                 if (config.dumpMaterials) {
@@ -130,7 +123,7 @@ public class Weapon {
                 MaterialName.addProperty("OverrideIndex", MaterialsList.get(i).overrideIndex);
                 MaterialName.addProperty("TargetMesh", MaterialsList.get(i).meshName);
                 MaterialName.addProperty("useOverride", MaterialsList.get(i).isOverride);
-                MaterialName.addProperty("meshType", "psk");
+                MaterialName.addProperty("meshType", "pskx");
 
                 String textureType;
                 String textureValue;
@@ -192,7 +185,7 @@ public class Weapon {
                         printWriter.println("-pkg=" + mats.materialPath);
                     }
                 }
-                
+
                 ProcessBuilder pb = new ProcessBuilder(Arrays.asList("umodel", "@umodel_queue.txt"));
                 pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
                 pb.redirectError(ProcessBuilder.Redirect.INHERIT);

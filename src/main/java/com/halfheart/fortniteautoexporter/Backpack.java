@@ -154,6 +154,7 @@ public class Backpack {
                 MaterialName.addProperty("OverrideIndex", MaterialsList.get(i).overrideIndex);
                 MaterialName.addProperty("TargetMesh", MaterialsList.get(i).meshName);
                 MaterialName.addProperty("useOverride", MaterialsList.get(i).isOverride);
+                MaterialName.addProperty("meshType", "psk");
 
                 String textureType;
                 String textureValue;
@@ -215,7 +216,7 @@ public class Backpack {
                         printWriter.println("-pkg=" + mats.materialPath);
                     }
                 }
-                Thread.sleep(5000);
+                
                 ProcessBuilder pb = new ProcessBuilder(Arrays.asList("umodel", "@umodel_queue.txt"));
                 pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
                 pb.redirectError(ProcessBuilder.Redirect.INHERIT);

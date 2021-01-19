@@ -38,13 +38,16 @@ def formatImagePath(indexPassthrough, textureType):
 
 def formatMeshPath(path: str):
     path = path[1:] if path.startswith("/") else path
-    return os.path.join(workingDirectory, "UmodelExport", path) + ".psk"
+    return os.path.join(workingDirectory, "UmodelExport", path) + "." + processed["Materials"][0]["meshType"]
 
 def textureSkin(NameOrIndex, Index, useMaterialSlotIndex):
     if useMaterialSlotIndex == True:
         mat = bpy.data.materials[obj.material_slots[:][NameOrIndex].name]
     if useMaterialSlotIndex == False:
-        mat = bpy.data.materials[NameOrIndex]
+        if NameOrIndex in bpy.data.materials.keys():            
+            mat = bpy.data.materials[NameOrIndex]
+        else:
+            return
     mat.use_nodes = True
     mat.name = processed["Materials"][Index]["MaterialName"]
 
@@ -146,13 +149,16 @@ objectCollection()
 
 bpy.context.scene.collection.children[0]
 
+i = 0
 for mesh in processed["Meshes"]:
     formatFilePath = formatMeshPath(mesh)    
     if not os.path.exists(formatFilePath):
         print(f"WARNING: {mesh} not found.")
         continue
 
-    pskimport(formatFilePath, bpy.context, bReorientBones=bReorientBones)
+    if not "Empty" in mesh:
+        pskimport(formatFilePath, bpy.context, bReorientBones=bReorientBones)
+    i += 1
 
 
 for obj in bpy.context.scene.objects:
@@ -165,7 +171,6 @@ for collection in bpy.data.collections:
         for obj in collection.all_objects:
             if ".mo" in obj.name:
                 bpy.context.view_layer.objects.active = obj
-
                 for material_slot in obj.material_slots:
                     Material_name = material_slot.material.name
                     print("MATERIAL", Material_name)
