@@ -190,7 +190,7 @@ for collection in bpy.data.collections:
                             if processed["Materials"][processedIndex]["TargetMesh"] == obj.name.replace(".mo", ""):
                                 textureSkin(processed["Materials"][processedIndex]["OverrideIndex"], processedIndex, True)    
                                 
-                        if "Glass" in Material_name:
+                        if "Glass" in Material_name and not "Diffuse" in processed["Materials"][processedIndex]:
                             mat = bpy.data.materials[Material_name]
                             mat.use_nodes = True
                             mat.blend_method = 'BLEND'
