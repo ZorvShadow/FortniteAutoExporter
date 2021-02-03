@@ -225,11 +225,11 @@ class FAE_OT_RunScript(bpy.types.Operator):
         ImportedCharacterParts = []
         i = 0
         for mesh in processed["Meshes"]:
-            print(processed["CharacterPartTypes"][i])
-            if processed["CharacterPartTypes"][i] in ImportedCharacterParts:
-                break
-            else:
-                ImportedCharacterParts.append(processed["CharacterPartTypes"][i])
+            if "CharacterPartTypes" in processed:
+                if processed["CharacterPartTypes"][i] in ImportedCharacterParts:
+                    break
+                else:
+                    ImportedCharacterParts.append(processed["CharacterPartTypes"][i])
             formatFilePath = formatMeshPath(mesh)
             
             #umodel export name fix
