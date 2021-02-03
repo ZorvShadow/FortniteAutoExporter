@@ -1,5 +1,5 @@
 # FortniteAutoExporter
-A tool made in Java/Python to automatically import Fortnite Skins into blender
+A tool made in Java/Python to automatically import Fortnite Skins into Blender
 
 ## Usage
 
@@ -10,27 +10,27 @@ A tool made in Java/Python to automatically import Fortnite Skins into blender
 * Run the RunExporter.bat file
 
 ### Importer
-* Open Blender and import the python script **autoexporter.py** into the scripting tab
-* Press the run script button
+* Open Blender and install the **AutoExporterPlugin.py** as an addon (Edit > Preferences > Add-ons)
+* Press **N** in the view port and find the AutoExporter tab
+* Select the AutoExporter folder where all of your files are located
 
 * Optional Settngs
-  * **bReorientBones** Toggles reoriented bones
-  * **textureCharacter** Toggles automatic character texturing
+  * **Reorient Bones** Toggles Reoriented Bones for Skeletal Meshes
+  * **Texture Imported Messhes** Toggles Texturing for Imported Meshes
 
 
 ## Config
 * **PaksDirectory** : Path to Fortnite's pak folder
 * **UEVersion** : Unreal Engine Version
-* **EncryptionKey** : AES Key to load the paks with
+* **mainKey** : The Main AES key to load the paks with (Automatically filled out by the RunExporter.bat)
+* **dynamicKeys**: List of AES keys to use for loading the dynamic paks (Automatically filled out by the RunExporter.bat)
 * **exportAssets** : Set this to false if you've already exported the models/textures of a skin
 * **dumpMaterials** : Dumps material.jsons into a folder for extra reading if needed
 
 
 
 ## Prerequisites
-* The Latest [Java Runtime Environment](https://www.oracle.com/java/technologies/javase-server-jre8-downloads.html) and [JDK 11](https://www.oracle.com/java/technologies/javase-jdk11-downloads.html) or higher
+* [JDK 11](https://www.oracle.com/java/technologies/javase-jdk11-downloads.html) or higher
 * The Latest [Blender PSK/PSA Import Plguin](https://github.com/Befzz/blender3d_import_psk_psa)
 
-## Limitations
-* Override Materials aren't currently supported
-* Skin Styles aren't currently supported
+
