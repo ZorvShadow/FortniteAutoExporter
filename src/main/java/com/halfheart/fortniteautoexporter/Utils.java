@@ -1,5 +1,8 @@
 package com.halfheart.fortniteautoexporter;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import kotlin.ranges.IntRange;
 
 import java.io.IOException;

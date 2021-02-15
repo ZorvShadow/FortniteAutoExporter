@@ -4,14 +4,18 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.halfheart.fortniteautoexporter.JSONStructures;
 import com.halfheart.fortniteautoexporter.JSONStructures.Config;
 import com.halfheart.fortniteautoexporter.JSONStructures.CosmeticResponse;
-import com.halfheart.fortniteautoexporter.JSONStructures.HSStructure.CharacterParts;
-import com.halfheart.fortniteautoexporter.JSONStructures.MeshMaterialData;
-import com.halfheart.fortniteautoexporter.Main;
-import me.fungames.jfortniteparse.tb24.JWPSerializer;
-import me.fungames.jfortniteparse.ue4.assets.IoPackage;
+import com.halfheart.fortniteautoexporter.JSONStructures.FortHeroSpecialization;
+import me.fungames.jfortniteparse.fort.enums.EFortCustomPartType;
+import me.fungames.jfortniteparse.fort.exports.AthenaCharacterItemDefinition;
+import me.fungames.jfortniteparse.fort.exports.CustomCharacterPart;
+import me.fungames.jfortniteparse.ue4.assets.ObjectTypeRegistry;
+import me.fungames.jfortniteparse.ue4.assets.exports.FSkeletalMaterial;
+import me.fungames.jfortniteparse.ue4.assets.exports.USkeletalMesh;
+import me.fungames.jfortniteparse.ue4.assets.exports.mats.UMaterialInstance;
+import me.fungames.jfortniteparse.ue4.assets.exports.mats.UMaterialInstanceConstant;
+import me.fungames.jfortniteparse.ue4.objects.uobject.FSoftObjectPath;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import org.slf4j.Logger;
@@ -21,62 +25,36 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Scanner;
 
 import static com.halfheart.fortniteautoexporter.Main.fileProvider;
-import static com.halfheart.fortniteautoexporter.ProcessCosmetics.*;
+import static com.halfheart.fortniteautoexporter.ProcessVariantClass.ProcessVariants;
 import static com.halfheart.fortniteautoexporter.Utils.range;
 
-
 public class Character {
-    public static final Logger LOGGER = LoggerFactory.getLogger("FortniteAutoExporter");
-    public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-
-    public static Config config;
-    public static CosmeticResponse[] cosmeticResponse;
-    public static IoPackage pkg;
+    private static final Logger LOGGER = LoggerFactory.getLogger("FortniteAutoExporter");
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public static long start;
+    public static CosmeticResponse[] cosmeticResponse;
+    public static Config config;
 
     public static boolean useCID;
-    public static boolean useHID;
 
     public static String characterName;
     public static String characterPath;
 
-    public static void promptCharacter() throws Exception {
-
+    public static void PromptCharacter(String characterNameArgs) throws Exception {
         try (FileReader reader = new FileReader(new File("config.json"))) {
             config = GSON.fromJson(reader, Config.class);
         }
 
-        System.out.println("\nCurrent Character Types:\nBR\nStW\n");
-        System.out.println("Character Type to Export:");
-        String characterTypeSelection = new Scanner(System.in).nextLine();
-
-        // Character Selection
-
-        String characterSelection = "";
-        if (characterTypeSelection.equalsIgnoreCase("BR")) {
-            useHID = false;
-
-            System.out.println("Enter Character Name or CID:");
-            characterSelection = new Scanner(System.in).nextLine().replace(".uasset", "");
-
-            useCID = characterSelection.contains("CID_");
-        } else if (characterTypeSelection.equalsIgnoreCase("StW")) {
-            useHID = true;
-            useCID = false;
-            System.out.println("Enter Hero HID:");
-            characterSelection = new Scanner(System.in).nextLine().replace(".uasset", "");
-        } else {
-            System.out.println("Invalid Character Type!");
-        }
+        String characterSelection = characterNameArgs;
+        useCID = characterSelection.contains("CID_");
 
         // Path and Name by Selection
         start = System.currentTimeMillis();
 
-        if (!useCID & !useHID) {
+        if (!useCID) {
             String skinSelectionFormat =
                     String.format("https://benbotfn.tk/api/v1/cosmetics/br/search/all?lang=en&searchLang=en&matchMethod=full&name=%s&backendType=AthenaCharacter",
                             characterSelection);
@@ -86,213 +64,176 @@ public class Character {
 
             if (cosmeticResponse.length == 0) {
                 LOGGER.error("Character Not Found.");
-                promptCharacter();
+                PromptCharacter(characterNameArgs);
             }
 
             if (cosmeticResponse[0].path == null) {
                 LOGGER.error("Invalid Character Selection.");
-                promptCharacter();
+                PromptCharacter(characterNameArgs);
             }
 
             characterName = cosmeticResponse[0].name;
-            characterPath = cosmeticResponse[0].path + ".uasset";
-        } else if (useCID & !useHID) {
+            characterPath = cosmeticResponse[0].path;
+
+        } else if (useCID) {
             characterName = characterSelection;
-            characterPath = "/Game/Athena/Items/Cosmetics/Characters/" + characterName + ".uasset";
-        } else if (!useCID & useHID) {
-            String[] characterSelectionSplit = characterSelection.split("/");
-            characterName = characterSelectionSplit[characterSelectionSplit.length - 1];
-            characterPath = characterSelection + ".uasset";
+            characterPath = "FortniteGame/Content/Athena/Items/Cosmetics/Characters/" + characterSelection;
         }
 
-        pkg = (IoPackage) fileProvider.loadGameFile(characterPath);
-        if (pkg == null) LOGGER.error("Error Parsing Package.");
-
-        if (JWPSerializer.GSON.toJson(pkg.getExports()).contains("FortCosmeticCharacterPartVariant")) {
-            processCharacterVariants();
-        } else {
-            processCharacter();
-        }
-
+        ProcessCharacter();
     }
 
-    public static void processCharacter() throws Exception {
+    public static void ProcessCharacter() throws Exception {
+        ObjectTypeRegistry.INSTANCE.registerClass(FortHeroSpecialization.class);
 
-        // CID to Character Parts
-        String HID = "";
-        if (!useHID) {
-            HID = processCID(pkg);
-        } else if (useHID) {
-            HID = characterPath;
-        }
+        JsonObject Processed = new JsonObject();
+        Processed.addProperty("ObjectName", characterName);
 
-        pkg = (IoPackage) fileProvider.loadGameFile(HID);
-        String HS = processHID(pkg);
+        JsonArray PartArray = new JsonArray();
+        Processed.add("CharacterParts", PartArray);
 
-        pkg = (IoPackage) fileProvider.loadGameFile(HS);
-        CharacterParts[] CP = processHS(pkg);
+        List<String> ExportList = new ArrayList<>();
 
-        List<MeshMaterialData> CPDataList = new ArrayList<>();
-        for (CharacterParts characterPart : CP) {
-            pkg = (IoPackage) fileProvider.loadGameFile(characterPart.asset_path_name);
-            processCP(pkg, CPDataList, 1);
-        }
+        AthenaCharacterItemDefinition CharacterItemDefinition = (AthenaCharacterItemDefinition) fileProvider.loadObject(characterPath);
+        ProcessVariants(CharacterItemDefinition.ItemVariants, Processed, ExportList);
 
-        // Create Processed JSON
-        JsonObject processed = new JsonObject();
-        processed.addProperty("objectName", characterName.replace(".uasset", ""));
+        FortHeroSpecialization Specialization = (FortHeroSpecialization) fileProvider.loadObject(CharacterItemDefinition.HeroDefinition.getValue().Specializations.get(0));
+        for (FSoftObjectPath CharacterPartPath : Specialization.CharacterParts) {
+            JsonObject CurrentPart = new JsonObject();
+            PartArray.add(CurrentPart);
 
-        JsonArray Meshes = new JsonArray();
-        processed.add("Meshes", Meshes);
-        for (MeshMaterialData data : CPDataList) {
-            if (!Meshes.toString().contains(data.meshPath)) {
-                Meshes.add(data.meshPath);
+            CustomCharacterPart CharacterPart = (CustomCharacterPart) fileProvider.loadObject(CharacterPartPath);
+            USkeletalMesh SkeletalMesh = (USkeletalMesh) fileProvider.loadObject(CharacterPart.SkeletalMesh);
+            ExportList.add(SkeletalMesh.getPathName());
+
+            CurrentPart.addProperty("Mesh", CharacterPart.SkeletalMesh.toString());
+            CurrentPart.addProperty("CharacterPartType", CharacterPart.CharacterPartType == null ? EFortCustomPartType.Head.name() : CharacterPart.CharacterPartType.name());
+
+            JsonArray MaterialArray = new JsonArray();
+            CurrentPart.add("Materials", MaterialArray);
+
+            for (FSkeletalMaterial SkeletalMaterial : SkeletalMesh.materials) {
+
+                if (SkeletalMaterial.getMaterial() != null) {
+                    if (SkeletalMaterial.getMaterial().getValue() instanceof UMaterialInstanceConstant) {
+                        UMaterialInstanceConstant Material = (UMaterialInstanceConstant) fileProvider.loadObject(SkeletalMaterial.getMaterial().getValue().getPathName());
+                        if (Material != null) {
+                            JsonObject CurrentMaterial = new JsonObject();
+                            MaterialArray.add(CurrentMaterial);
+                            CurrentMaterial.addProperty("Material", Material.getPathName());
+                            ExportList.add(Material.getPathName());
+
+                            if (Material.TextureParameterValues != null) {
+                                for (UMaterialInstance.FTextureParameterValue TextureParam : Material.TextureParameterValues) {
+                                    try {
+                                        CurrentMaterial.addProperty(TextureParam.ParameterInfo.Name.toString(), TextureParam.ParameterValue.getValue().getPathName());
+                                    } catch (NullPointerException e) {
+                                        LOGGER.error("Param is null, skipping");
+                                    }
+                                }
+                            }
+                            if (Material.ScalarParameterValues != null) {
+                                for (UMaterialInstance.FScalarParameterValue ScalarParam : Material.ScalarParameterValues) {
+                                    try {
+                                        CurrentMaterial.addProperty(ScalarParam.ParameterInfo.Name.toString(), ScalarParam.ParameterValue);;
+                                    } catch (NullPointerException e) {
+                                        LOGGER.error("Param is null, skipping");
+                                    }
+                                }
+                            }
+                            if (Material.VectorParameterValues != null) {
+                                for (UMaterialInstance.FVectorParameterValue VectorParam : Material.VectorParameterValues) {
+                                    try {
+                                        CurrentMaterial.addProperty(VectorParam.ParameterInfo.Name.toString(),
+                                                VectorParam.ParameterValue.getR() + ", "
+                                                        + VectorParam.ParameterValue.getG() + ", "
+                                                        + VectorParam.ParameterValue.getB() + ", "
+                                                        + VectorParam.ParameterValue.getA());
+                                    } catch (NullPointerException e) {
+                                        LOGGER.error("Param is null, skipping");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (CharacterPart.MaterialOverrides != null) {
+                for (CustomCharacterPart.CustomPartMaterialOverrideData MaterialOverrideData : CharacterPart.MaterialOverrides) {
+
+                    UMaterialInstanceConstant Material = (UMaterialInstanceConstant) fileProvider.loadObject(MaterialOverrideData.OverrideMaterial.getAssetPathName().toString());
+                    if (Material != null) {
+                        JsonObject CurrentMaterial = new JsonObject();
+                        MaterialArray.add(CurrentMaterial);
+                        CurrentMaterial.addProperty("Material", Material.getPathName());
+                        CurrentMaterial.addProperty("OverrideMaterialIndex", MaterialOverrideData.MaterialOverrideIndex);
+                        ExportList.add(Material.getPathName());
+
+                        if (Material.TextureParameterValues != null) {
+                            for (UMaterialInstance.FTextureParameterValue TextureParam : Material.TextureParameterValues) {
+                                try {
+                                    CurrentMaterial.addProperty(TextureParam.ParameterInfo.Name.toString(), TextureParam.ParameterValue.getValue().getPathName());
+                                } catch (NullPointerException e) {
+                                    LOGGER.error("Param is null, skipping");
+                                }
+                            }
+                        }
+                        if (Material.ScalarParameterValues != null) {
+                            for (UMaterialInstance.FScalarParameterValue ScalarParam : Material.ScalarParameterValues) {
+                                try {
+                                    CurrentMaterial.addProperty(ScalarParam.ParameterInfo.Name.toString(), ScalarParam.ParameterValue);;
+                                } catch (NullPointerException e) {
+                                    LOGGER.error("Param is null, skipping");
+                                }
+                            }
+                        }
+                        if (Material.VectorParameterValues != null) {
+                            for (UMaterialInstance.FVectorParameterValue VectorParam : Material.VectorParameterValues) {
+                                try {
+                                    CurrentMaterial.addProperty(VectorParam.ParameterInfo.Name.toString(),
+                                            VectorParam.ParameterValue.getR() + ", "
+                                                    + VectorParam.ParameterValue.getG() + ", "
+                                                    + VectorParam.ParameterValue.getB() + ", "
+                                                    + VectorParam.ParameterValue.getA());
+                                } catch (NullPointerException e) {
+                                    LOGGER.error("Param is null, skipping");
+                                }
+                            }
+                        }
+                    }
+
+                }
             }
         }
 
-        JsonArray Materials = new JsonArray();
-        processed.add("Materials", Materials);
-
-        processMaterial(CPDataList, Materials);
-
-        // Write to processed.json
         File processedFile = new File("processed.json");
         processedFile.createNewFile();
         FileWriter writer = new FileWriter(processedFile);
-        writer.write(GSON.toJson(processed));
+        writer.write(GSON.toJson(Processed));
         writer.close();
 
-        // Start Umodel
-        if (config.exportAssets) {
-            try (PrintWriter printWriter = new PrintWriter("umodel_queue.txt")) {
-                printWriter.println("-path=\"" + config.PaksDirectory + "\"");
-                printWriter.println("-game=ue4." + "27");
-                printWriter.println("-aes=" + config.mainKey);
+        try (PrintWriter printWriter = new PrintWriter("umodel_queue.txt")) {
+            printWriter.println("-path=\"" + config.PaksDirectory + "\"");
+            printWriter.println("-game=ue4." + "27");
+            printWriter.println("-aes=" + config.mainKey);
 
-                for (int i : range(config.dynamicKeys.toArray().length)) {
-                   printWriter.println("-aes=" + config.dynamicKeys.get(i).key);
-                }
-
-                printWriter.println("-export ");
-                printWriter.println("-nooverwrite ");
-                for (MeshMaterialData data : CPDataList) {
-                    printWriter.println("-pkg=" + data.materialPath);
-                    printWriter.println("-pkg=" + data.meshPath);
-                }
+            for (int i : range(config.dynamicKeys.toArray().length)) {
+                printWriter.println("-aes=" + config.dynamicKeys.get(i).key);
             }
 
-            ProcessBuilder pb = new ProcessBuilder(Arrays.asList("umodel", "@umodel_queue.txt"));
-            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
-            pb.start().waitFor();
-
-            LOGGER.info(String.format("Finished Exporting in %.1f sec.", (System.currentTimeMillis() - start) / 1000.0F));
-            Main.selectItemType();
-        }
-    }
-
-    public static void processCharacterVariants() throws Exception {
-
-        // Create Processed JSON
-        JsonObject processed = new JsonObject();
-        processed.addProperty("objectName", characterName.replace(".uasset", ""));
-
-        List<String> VariantCP = new ArrayList<>();
-        List<JSONStructures.VariantMaterialList> VariantMaterialsList = new ArrayList<>();
-        String HIDandVARIANT = processCIDVariant(pkg, VariantCP, VariantMaterialsList);
-
-        processed.addProperty("objectName", String.format(characterName.replace(".uasset", "") + " (%s)",HIDandVARIANT.split("::")[1].toUpperCase()));
-
-        JsonArray VariantMaterials = new JsonArray();
-        processed.add("VariantMaterials", VariantMaterials);
-        processMaterialVariants(VariantMaterialsList, VariantMaterials);
-
-        pkg = (IoPackage) fileProvider.loadGameFile(HIDandVARIANT.split("::")[0]);
-        String HS = processHID(pkg);
-
-        pkg = (IoPackage) fileProvider.loadGameFile(HS);
-        CharacterParts[] CP = processHS(pkg);
-
-        List<MeshMaterialData> CPDataList = new ArrayList<>();
-        for (String characterPart : VariantCP) {
-            pkg = (IoPackage) fileProvider.loadGameFile(characterPart);
-            processCP(pkg, CPDataList, 1);
-        }
-        for (CharacterParts characterPart : CP) {
-            pkg = (IoPackage) fileProvider.loadGameFile(characterPart.asset_path_name);
-            processCP(pkg, CPDataList, 1);
-        }
-
-        JsonArray Meshes = new JsonArray();
-        processed.add("Meshes", Meshes);
-        for (MeshMaterialData data : CPDataList) {
-            if (!Meshes.toString().contains(data.meshPath)) {
-                Meshes.add(data.meshPath);
-            }
-        }
-
-        JsonArray CPTypesArray = new JsonArray();
-        processed.add("CharacterPartTypes", CPTypesArray);
-        String previousType = "";
-        for (MeshMaterialData data : CPDataList) {
-            System.out.println("PREVIOUS " + previousType);
-            System.out.println("CURRENT " + data.CPType);
-            if (previousType.equalsIgnoreCase(data.CPType)) {
-                previousType = "";
-                System.out.println("ABOVE TWO ARE MATCHING, IGNORE");
-            } else {
-                if (data.CPType != null) {
-                    CPTypesArray.add(data.CPType);
-                    previousType = data.CPType;
-                }
-            }
-            System.out.println("-------------------------");
-
-        }
-
-        JsonArray Materials = new JsonArray();
-        processed.add("Materials", Materials);
-
-        processMaterial(CPDataList, Materials);
-
-        // Write to processed.json
-        File processedFile = new File("processed.json");
-        processedFile.createNewFile();
-        FileWriter writer = new FileWriter(processedFile);
-        writer.write(GSON.toJson(processed));
-        writer.close();
-
-        // Start Umodel
-        if (config.exportAssets) {
-            try (PrintWriter printWriter = new PrintWriter("umodel_queue.txt")) {
-                printWriter.println("-path=\"" + config.PaksDirectory + "\"");
-                printWriter.println("-game=ue4." + "27");
-                printWriter.println("-aes=" + config.mainKey);
-
-                for (int i : range(config.dynamicKeys.toArray().length)) {
-                    printWriter.println("-aes=" + config.dynamicKeys.get(i).key);
-                }
-
-                printWriter.println("-export ");
-                printWriter.println("-nooverwrite ");
-                for (MeshMaterialData data : CPDataList) {
-                    printWriter.println("-pkg=" + data.materialPath);
-                    printWriter.println("-pkg=" + data.meshPath);
-                }
-                for (JSONStructures.VariantMaterialList data : VariantMaterialsList) {
-                    printWriter.println("-pkg=" + data.overrideMaterial);
-                    printWriter.println("-pkg=" + data.originalMaterial);
-                }
+            for (String mesh : ExportList) {
+                printWriter.println("-pkg=" + mesh.split("\\.")[0]);
             }
 
-            ProcessBuilder pb = new ProcessBuilder(Arrays.asList("umodel", "@umodel_queue.txt"));
-            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
-            pb.start().waitFor();
-
-            LOGGER.info(String.format("Finished Exporting in %.1f sec.", (System.currentTimeMillis() - start) / 1000.0F));
-            Main.selectItemType();
+            printWriter.println("-export ");
+            printWriter.println("-nooverwrite ");
         }
+
+        ProcessBuilder pb = new ProcessBuilder(Arrays.asList("umodel", "@umodel_queue.txt"));
+        pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+        pb.start().waitFor();
+
+        LOGGER.info(String.format("Finished Exporting in %.1f sec.", (System.currentTimeMillis() - start) / 1000.0F));
     }
 }
-

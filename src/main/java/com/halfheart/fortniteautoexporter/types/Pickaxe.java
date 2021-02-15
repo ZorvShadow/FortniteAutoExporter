@@ -7,10 +7,14 @@ import com.google.gson.JsonObject;
 import com.halfheart.fortniteautoexporter.JSONStructures;
 import com.halfheart.fortniteautoexporter.JSONStructures.Config;
 import com.halfheart.fortniteautoexporter.JSONStructures.CosmeticResponse;
-import com.halfheart.fortniteautoexporter.JSONStructures.MeshMaterialData;
 import com.halfheart.fortniteautoexporter.Main;
+import me.fungames.jfortniteparse.fort.exports.AthenaPickaxeItemDefinition;
 import me.fungames.jfortniteparse.tb24.JWPSerializer;
 import me.fungames.jfortniteparse.ue4.assets.IoPackage;
+import me.fungames.jfortniteparse.ue4.assets.exports.FSkeletalMaterial;
+import me.fungames.jfortniteparse.ue4.assets.exports.USkeletalMesh;
+import me.fungames.jfortniteparse.ue4.assets.exports.mats.UMaterialInstance;
+import me.fungames.jfortniteparse.ue4.assets.exports.mats.UMaterialInstanceConstant;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import org.slf4j.Logger;
@@ -23,7 +27,9 @@ import java.util.List;
 import java.util.Scanner;
 
 import static com.halfheart.fortniteautoexporter.Main.fileProvider;
-import static com.halfheart.fortniteautoexporter.ProcessCosmetics.*;
+import static com.halfheart.fortniteautoexporter.ProcessVariantClass.ProcessVariants;
+import static com.halfheart.fortniteautoexporter.Utils.range;
+import static com.halfheart.fortniteautoexporter.types.Weapon.processWeapon;
 
 
 public class Pickaxe {
@@ -32,23 +38,21 @@ public class Pickaxe {
 
     public static Config config;
     public static CosmeticResponse[] cosmeticResponse;
-    public static IoPackage pkg;
 
     public static long start;
-    
+
     public static boolean usePickaxeID;
 
     public static String pickaxeName;
     public static String pickaxePath;
 
-    public static void promptPickaxe() throws Exception {
+    public static void PromptPickaxe(String PickaxeArgs) throws Exception {
 
         try (FileReader reader = new FileReader(new File("config.json"))) {
             config = GSON.fromJson(reader, Config.class);
         }
 
-        System.out.println("Enter Pickaxe Name or Pickaxe_ID:");
-        String pickaxeSelection = new Scanner(System.in).nextLine().replace(".uasset", "");
+        String pickaxeSelection = PickaxeArgs;
         usePickaxeID = pickaxeSelection.contains("Pickaxe_ID");
 
         // Path and Name by Selection
@@ -63,90 +67,125 @@ public class Pickaxe {
 
             if (cosmeticResponse.length == 0) {
                 LOGGER.error("Pickaxe Not Found.");
-                promptPickaxe();
+                PromptPickaxe(PickaxeArgs);
             }
 
             if (cosmeticResponse[0].path == null) {
                 LOGGER.error("Invalid Pickaxe Selection.");
-                promptPickaxe();
+                PromptPickaxe(PickaxeArgs);
             }
 
             pickaxeName = cosmeticResponse[0].name;
-            pickaxePath = cosmeticResponse[0].path + ".uasset";
+            pickaxePath = cosmeticResponse[0].path;
         } else if (usePickaxeID) {
             pickaxeName = pickaxeSelection;
-            pickaxePath = "/Game/Content/Athena/Items/Cosmetics/Pickaxes/" + pickaxeName + ".uasset";
+            pickaxePath = "FortniteGame/Content/Athena/Items/Cosmetics/Pickaxes/" + pickaxeName;
         }
 
         start = System.currentTimeMillis();
 
-        pkg = (IoPackage) fileProvider.loadGameFile(pickaxePath);
-        String toJson = JWPSerializer.GSON.toJson(pkg.getExports());
-        JSONStructures.PickaxeIDStructure[] PickaxeID = GSON.fromJson(toJson, JSONStructures.PickaxeIDStructure[].class);
-
-        pkg = (IoPackage) fileProvider.loadGameFile(PickaxeID[0].WeaponDefinition[1]);
-        if (pkg == null) LOGGER.error("Error Parsing Package.");
-
-        processWeapon();
+        ProcessPickaxe();
     }
 
-    public static void processWeapon() throws Exception {
+    public static void ProcessPickaxe() throws Exception {
+        JsonObject Processed = new JsonObject();
+        Processed.addProperty("ObjectName", pickaxeName);
 
+        JsonArray PartArray = new JsonArray();
+        Processed.add("CharacterParts", PartArray);
 
+        List<String> ExportList = new ArrayList<>();
 
-        String WID = processWID(pkg);
-        pkg = (IoPackage) fileProvider.loadGameFile(WID);
+        AthenaPickaxeItemDefinition PickaxeItemDefinition = (AthenaPickaxeItemDefinition) fileProvider.loadObject(pickaxePath);
+        ProcessVariants(PickaxeItemDefinition.ItemVariants, Processed, ExportList);
 
-        List<MeshMaterialData> MeshDataList = new ArrayList<>();
-        processMesh(pkg, MeshDataList);
+        JsonObject CurrentPart = new JsonObject();
+        PartArray.add(CurrentPart);
 
-        // Create Processed JSON
-        JsonObject processed = new JsonObject();
-        processed.addProperty("objectName", pickaxeName.replace(".uasset", ""));
+        USkeletalMesh SkeletalMesh = PickaxeItemDefinition.WeaponDefinition.getValue().WeaponMeshOverride != null ?
+                (USkeletalMesh) fileProvider.loadObject(PickaxeItemDefinition.WeaponDefinition.getValue().WeaponMeshOverride) :
+                (USkeletalMesh) fileProvider.loadObject(PickaxeItemDefinition.WeaponDefinition.getValue().PickupSkeletalMesh);
+        ExportList.add(SkeletalMesh.getPathName());
 
-        JsonArray Meshes = new JsonArray();
-        processed.add("Meshes", Meshes);
-        for (MeshMaterialData data : MeshDataList) {
-            if (!Meshes.toString().contains(data.meshPath)) {
-                Meshes.add(data.meshPath);
+        CurrentPart.addProperty("Mesh", SkeletalMesh.getPathName());
+        JsonArray MaterialArray = new JsonArray();
+        CurrentPart.add("Materials", MaterialArray);
+
+        for (FSkeletalMaterial SkeletalMaterial : SkeletalMesh.materials) {
+
+            if (SkeletalMaterial.getMaterial() != null) {
+                if (SkeletalMaterial.getMaterial().getValue() instanceof UMaterialInstanceConstant) {
+
+                    UMaterialInstanceConstant Material = (UMaterialInstanceConstant) fileProvider.loadObject(SkeletalMaterial.getMaterial().getValue().getPathName());
+                    if (Material != null) {
+                        JsonObject CurrentMaterial = new JsonObject();
+                        MaterialArray.add(CurrentMaterial);
+                        CurrentMaterial.addProperty("Material", Material.getPathName());
+                        ExportList.add(Material.getPathName());
+                        if (Material.TextureParameterValues != null) {
+                            for (UMaterialInstance.FTextureParameterValue TextureParam : Material.TextureParameterValues) {
+                                try {
+                                    CurrentMaterial.addProperty(TextureParam.ParameterInfo.Name.toString(), TextureParam.ParameterValue.getValue().getPathName());
+                                } catch (NullPointerException e) {
+                                    LOGGER.error("Param is null, skipping");
+                                }
+                            }
+                        }
+                        if (Material.ScalarParameterValues != null) {
+                            for (UMaterialInstance.FScalarParameterValue ScalarParam : Material.ScalarParameterValues) {
+                                try {
+                                    CurrentMaterial.addProperty(ScalarParam.ParameterInfo.Name.toString(), ScalarParam.ParameterValue);
+                                } catch (NullPointerException e) {
+                                    LOGGER.error("Param is null, skipping");
+                                }
+                            }
+                        }
+                        if (Material.VectorParameterValues != null) {
+                            for (UMaterialInstance.FVectorParameterValue VectorParam : Material.VectorParameterValues) {
+                                try {
+                                    CurrentMaterial.addProperty(VectorParam.ParameterInfo.Name.toString(),
+                                            VectorParam.ParameterValue.getR() + ", "
+                                                    + VectorParam.ParameterValue.getG() + ", "
+                                                    + VectorParam.ParameterValue.getB() + ", "
+                                                    + VectorParam.ParameterValue.getA());
+                                } catch (NullPointerException e) {
+                                    LOGGER.error("Param is null, skipping");
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        JsonArray Materials = new JsonArray();
-        processed.add("Materials", Materials);
-
-        processMaterial(MeshDataList, Materials);
-
-        // Write to processed.json
         File processedFile = new File("processed.json");
         processedFile.createNewFile();
         FileWriter writer = new FileWriter(processedFile);
-        writer.write(GSON.toJson(processed));
+        writer.write(GSON.toJson(Processed));
         writer.close();
 
-        // Start Umodel
-        if (config.exportAssets) {
-            try (PrintWriter printWriter = new PrintWriter("umodel_queue.txt")) {
-                printWriter.println("-path=\"" + config.PaksDirectory + "\"");
-                printWriter.println("-game=ue4." + "27");
-                printWriter.println("-aes=" + config.mainKey);
-                printWriter.println("-export ");
-                printWriter.println("-nooverwrite ");
-                for (MeshMaterialData data : MeshDataList) {
-                    printWriter.println("-pkg=" + data.materialPath);
-                    printWriter.println("-pkg=" + data.meshPath);
-                }
+        try (PrintWriter printWriter = new PrintWriter("umodel_queue.txt")) {
+            printWriter.println("-path=\"" + config.PaksDirectory + "\"");
+            printWriter.println("-game=ue4." + "27");
+            printWriter.println("-aes=" + config.mainKey);
+
+            for (int i : range(config.dynamicKeys.toArray().length)) {
+                printWriter.println("-aes=" + config.dynamicKeys.get(i).key);
             }
 
-            ProcessBuilder pb = new ProcessBuilder(Arrays.asList("umodel", "@umodel_queue.txt"));
-            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
-            pb.start().waitFor();
+            for (String mesh : ExportList) {
+                printWriter.println("-pkg=" + mesh.split("\\.")[0]);
+            }
 
-            LOGGER.info(String.format("Finished Exporting in %.1f sec.", (System.currentTimeMillis() - start) / 1000.0F));
-            Main.selectItemType();
+            printWriter.println("-export ");
+            printWriter.println("-nooverwrite ");
         }
+
+        ProcessBuilder pb = new ProcessBuilder(Arrays.asList("umodel", "@umodel_queue.txt"));
+        pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+        pb.start().waitFor();
+
+        LOGGER.info(String.format("Finished Exporting in %.1f sec.", (System.currentTimeMillis() - start) / 1000.0F));
     }
-
 }
-

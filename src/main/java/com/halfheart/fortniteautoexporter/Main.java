@@ -17,14 +17,14 @@ import java.util.*;
 
 import com.halfheart.fortniteautoexporter.JSONStructures.*;
 
+import static com.halfheart.fortniteautoexporter.types.Glider.PromptGlider;
+import static com.halfheart.fortniteautoexporter.types.Mesh.ProcessMesh;
 import static com.halfheart.fortniteautoexporter.Utils.range;
-import static com.halfheart.fortniteautoexporter.types.Character.*;
-import static com.halfheart.fortniteautoexporter.types.Backpack.*;
-import static com.halfheart.fortniteautoexporter.types.Glider.*;
-import static com.halfheart.fortniteautoexporter.types.Mesh.*;
-import static com.halfheart.fortniteautoexporter.types.Weapon.*;
-import static com.halfheart.fortniteautoexporter.types.Pickaxe.*;
 import static com.halfheart.fortniteautoexporter.Utils.clearScreen;
+import static com.halfheart.fortniteautoexporter.types.Backpack.PromptBackpack;
+import static com.halfheart.fortniteautoexporter.types.Character.PromptCharacter;
+import static com.halfheart.fortniteautoexporter.types.Pickaxe.PromptPickaxe;
+import static com.halfheart.fortniteautoexporter.types.Weapon.PromptWeapon;
 
 public class Main {
 
@@ -34,6 +34,7 @@ public class Main {
     public static DefaultFileProvider fileProvider;
 
     public static void main(String[] Args) throws Exception {
+
         String mappingsName = "";
         try {
             mappingsName = updateMappings();
@@ -88,35 +89,33 @@ public class Main {
         LOGGER.info("Unreal Version: " + config.UEVersion);
         LOGGER.info("Pak Directory: " + pakDir.getAbsolutePath());
 
-        while (true) selectItemType();
-
-    }
-
-    public static void selectItemType() throws Exception {
-        Thread.sleep(1000);
-        System.out.println("\nCurrent Item Types:\nBackpack (BAK)\nCharacter (CHA)\nGlider (GLI)\nPickaxe (PIC)\nWeapon (WEP)\nMesh\n");
-        System.out.println("Item Type to Export:");
-        String selection = new Scanner(System.in).nextLine();
-
         try {
-            if (selection.equalsIgnoreCase("character") || (selection.equalsIgnoreCase("cha"))) {
-                promptCharacter();
-            } else if (selection.equalsIgnoreCase("backpack") || (selection.equalsIgnoreCase("bak"))){
-                promptBackpack();
-            } else if (selection.equalsIgnoreCase("glider") || (selection.equalsIgnoreCase("gli"))){
-                promptGlider();
-            } else if (selection.equalsIgnoreCase("weapon") || (selection.equalsIgnoreCase("wep"))){
-                promptWeapon();
-            } else if (selection.equalsIgnoreCase("pickaxe") || (selection.equalsIgnoreCase("pic"))){
-                promptPickaxe();
-            } else if (selection.equalsIgnoreCase("mesh")){
-                processMeshType();
-            } else {
-                System.out.println("Invalid Selection!");
+            if (Args.length > 0) {
+                switch (Args[0]) {
+                    case "-Character":
+                        PromptCharacter(Args[1].replace("-", ""));
+                        System.exit(2);
+                    case "-Backpack":
+                        PromptBackpack(Args[1].replace("-", ""));
+                        System.exit(2);
+                    case "-Glider":
+                        PromptGlider(Args[1].replace("-", ""));
+                        System.exit(2);
+                    case "-Pickaxe":
+                        PromptPickaxe(Args[1].replace("-", ""));
+                        System.exit(2);
+                    case "-Weapon":
+                        PromptWeapon(Args[1].replace("-", ""));
+                        System.exit(2);
+                    case "-Mesh":
+                        ProcessMesh(Args[1].replace("-", ""));
+                        System.exit(2);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
-            selectItemType();
+            Thread.sleep(3000);
+            System.exit(1);
         }
     }
 
